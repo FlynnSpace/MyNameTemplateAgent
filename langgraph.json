@@ -1,0 +1,11 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "my_name_chat_agent": "./example.py:app"
+  },
+  "env": ".env",
+  "python_version": "3.11",
+  "host": "0.0.0.0",
+  "port": 2024
+}
+

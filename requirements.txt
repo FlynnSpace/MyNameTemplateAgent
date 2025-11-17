@@ -1,0 +1,14 @@
+# LangGraph 核心依赖
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+
+# OpenAI 集成
+langchain-openai>=0.2.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# HTTP 请求（用于 KIE API）
+requests>=2.31.0
+
