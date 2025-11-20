@@ -52,15 +52,15 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 
 @tool
-def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_url: str):
-    """Create a task to edit an image from a prompt by seedream-v4 edit model. Returns the task ID. Image URL is the URL of the image to edit."""
+def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]):
+    """Create a task to edit an image from a prompt by seedream-v4 edit model. Returns the task ID. Image URLs are the URLs of the images to edit."""
 
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "image_urls": [image_url],
+            "image_urls": image_urls,
             "image_size": DEFAULT_IMAGE_SIZE,
             "image_resolution": DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
@@ -103,7 +103,7 @@ def get_task_status(task_id: str):
 
 @tool
 def text_to_video_by_sora2_model_create_task(prompt: str):
-    """Create a task to generate a video from a prompt. Returns the task ID. Prompt is the prompt to generate the video from."""
+    """Create a task to generate a 10-second video from a prompt. Returns the task ID. Prompt is the prompt to generate the video from."""
 
     payload = {
         "model": "sora-2-text-to-video",
@@ -122,17 +122,15 @@ def text_to_video_by_sora2_model_create_task(prompt: str):
     return result["data"]["taskId"]
 
 @tool
-def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_url: str):
-    """Create a task to generate a video from a first frame. Returns the task ID. Prompt is the prompt to generate the video from. Image URL is the URL of the image to generate the video from."""
+def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str]):
+    """Create a task to generate a 10-second video from a first frame. Returns the task ID. Prompt is the prompt to generate the video from. Image URLs are the URLs of the images to generate the video from."""
 
     payload = {
         "model": "sora-2-image-to-video",
         "callBackUrl": CALLBACK_URL,
         "input": {
                     "prompt": prompt,
-                    "image_urls": [ 
-                        image_url
-                    ],
+                    "image_urls": image_urls,
                     "aspect_ratio": DEFAULT_ASPECT_RATIO,
                     "n_frames": DEFAULT_N_FRAMES,
                     "remove_watermark": True
