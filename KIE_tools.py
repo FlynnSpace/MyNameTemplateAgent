@@ -91,10 +91,14 @@ def get_task_status(task_id: str):
     response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
     result = response.json()
 
-    if result["data"]["status"] == "success":
-        return result["data"]["resultJson"]["resultUrls"][0]
+    if result["data"]["state"] == "success":
+        return json.loads(result['data']['resultJson'])['resultUrls'][0]
     else:
-        return {result["data"]["failCode"]: result["data"]["failMsg"]}
+        return {
+            "status": result["data"]["state"],
+            "code": result["data"]["failCode"],
+            "message": result["data"]["failMsg"]
+        }
 
 
 @tool
@@ -119,7 +123,7 @@ def text_to_video_by_sora2_model_create_task(prompt: str):
 
 @tool
 def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_url: str):
-    """Create a task to generate a video from a first frame. Returns the task ID. Image URL is the URL of the image to generate the video from."""
+    """Create a task to generate a video from a first frame. Returns the task ID. Prompt is the prompt to generate the video from. Image URL is the URL of the image to generate the video from."""
 
     payload = {
         "model": "sora-2-image-to-video",
