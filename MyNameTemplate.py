@@ -22,7 +22,8 @@ tools = [
     image_to_image_by_seedream_v4_edit_model_create_task,
     get_task_status,
     text_to_video_by_sora2_model_create_task,
-    first_frame_to_video_by_sora2_model_create_task
+    first_frame_to_video_by_sora2_model_create_task,
+    remove_watermark_from_image_by_seedream_v4_edit_model_create_task
     ]
 
 model = ChatOpenAI(model = "gpt-5").bind_tools(tools)
@@ -35,7 +36,7 @@ def model_call(state:AgentState) -> AgentState:
             - Step 1: Generate a new image based on the reference picture url of the anime protagonist provided by the user. The tool used for this step is image_dit.  
             - Step 2: Based on the text provided by the user, either video is generated through text-to-video conversion or the first frame is used for video generation.
             - Step 3: You can use the following tools to help you: {str(tools)}.
-        2. Special rules:
+        2. Rules:
             - Do not get the task status immediately after calling the tool.
             - If the task needs to call multiple tools, you should call the tools one by one and wait for the user's response before calling the next tool.
             - Infer the user's intention. If the user mentions names like "male protagonist" and "female protagonist", and requests the use of image references to generate images or videos, but does not explicitly provide URLs, then ask the user for clarification.

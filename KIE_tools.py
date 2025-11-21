@@ -14,12 +14,12 @@ RECORD_INFO_URL = f"{API_BASE_URL}/jobs/recordInfo"
 CALLBACK_URL = None
 
 # 图像生成默认配置
-DEFAULT_IMAGE_SIZE = "square_hd"
-DEFAULT_IMAGE_RESOLUTION = "1K"
+DEFAULT_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
+DEFAULT_IMAGE_RESOLUTION = "2K"
 DEFAULT_MAX_IMAGES = 1
 
 # 视频生成默认配置
-DEFAULT_ASPECT_RATIO = "landscape"
+DEFAULT_ASPECT_RATIO = "landscape"  # portrait
 DEFAULT_N_FRAMES = "10"
 
 
@@ -32,7 +32,12 @@ def _get_headers(content_type="application/json"):
 
 @tool
 def text_to_image_by_seedream_v4_model_create_task(prompt: str):
-    """Create a task to generate an image from a prompt by seedream-v4 model. Returns the task ID."""
+    """
+    Create a task to generate an image from a prompt by seedream-v4 model. Returns the task ID.
+    Operation Guide:
+        1. You need to infer the user's intention. If the user mentions names like "male protagonist" and "female protagonist", and requests the use of image references to generate images or videos, but does not explicitly provide URLs, then ask the user for clarification.
+        2. If the user's prompt is too brief, ask if they want to refine the prompt: If the user replies that they do not need to refine the prompt, keep the prompt as it is for image generation; if the user needs to refine the prompt, complete the prompt and continue with the characters. If the user does not clearly indicate, during the process of refining the prompt, follow the template's own visual style and do not add incompatible elements.
+    """
 
     payload = {
         "model": "bytedance/seedream-v4-text-to-image",
@@ -53,7 +58,10 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 @tool
 def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]):
-    """Create a task to edit an image from a prompt by seedream-v4 edit model. Returns the task ID. Image URLs are the URLs of the images to edit."""
+    """
+    Create a task to edit an image from a prompt by seedream-v4 edit model. Returns the task ID. Image URLs are the URLs of the images to edit.
+    
+    """
 
     payload = {
         "model": "bytedance/seedream-v4-edit",
@@ -103,7 +111,15 @@ def get_task_status(task_id: str):
 
 @tool
 def text_to_video_by_sora2_model_create_task(prompt: str):
-    """Create a task to generate a 10-second video from a prompt. Returns the task ID. Prompt is the prompt to generate the video from."""
+    """
+    Create a task to generate a 10-second video from a prompt. Returns the task ID. Prompt is the prompt to generate the video from.
+    Operation Guide:
+        1. Infer the user's intention. Use text-to-video generation when the user wants to create an empty scene and does not provide an image URL. If the user provides an image URL or mentions names or pronouns such as "the protagonist" or "the antagonist", and clearly indicates that they want to use image references to generate an image or video, then switch to the image-to-video tool.
+        2. Do not frequently ask about the user's intention. Only ask questions about necessary information when the user does not provide it. Do not ask the user questions about the generation parameters.
+        3. Do not change the original prompt words. Only add descriptions of the style and other restrictive descriptions on top of it.
+        4. Do not change the image style.
+        5. Do not arbitrarily add elements that the user did not mention, such as characters, environments, etc.
+    """
 
     payload = {
         "model": "sora-2-text-to-video",
@@ -123,7 +139,15 @@ def text_to_video_by_sora2_model_create_task(prompt: str):
 
 @tool
 def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str]):
-    """Create a task to generate a 10-second video from a first frame. Returns the task ID. Prompt is the prompt to generate the video from. Image URLs are the URLs of the images to generate the video from."""
+    """
+    Create a task to generate a 10-second video from a first frame. Returns the task ID. Prompt is the prompt to generate the video from. Image URLs are the URLs of the images to generate the video from.
+    Operation Guide:
+        1. Infer the user's intention. If the user mentions names like the male and female leads and hopes to generate images or videos using image references, but does not explicitly provide URLs, then ask the user for clarification. After the user adds the image path, continue with the task; if the user replies that they still need to generate without the URLs or that they want to generate text-to-video instead, then call the text-to-video tool.
+        2. Do not frequently inquire about the user's intention. Only ask questions when the user does not provide necessary information. Do not ask the user questions about the generation parameters.
+        3. Do not modify the original prompt words of the user. Only add descriptions of the style and other restrictive descriptions based on them.
+        4. Do not change the image style.
+        5. Do not arbitrarily add elements that the user did not mention, such as characters, environments, etc.
+    """
 
     payload = {
         "model": "sora-2-image-to-video",
@@ -140,4 +164,34 @@ def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: li
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    return result["data"]["taskId"]
+
+
+@tool
+def remove_watermark_from_image_by_seedream_v4_edit_model_create_task(image_urls: list[str]):
+    """Remove the watermark from the image. Returns the URL of the image without watermark. Image URLs are the URLs of the images to remove the watermark from.
+    Operation Guide:
+        1. Do not inquire about the user's intention.
+    """
+    payload = {
+        "model": "bytedance/seedream-v4-edit",
+        "callBackUrl": CALLBACK_URL,
+        "input": {
+            "prompt": "Remove the watermark from the image.",
+            "image_urls": image_urls,
+            "image_size": DEFAULT_IMAGE_SIZE,
+            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
+            "max_images": DEFAULT_MAX_IMAGES
+        }
+    }
+
+    response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
+    result = response.json()
+    # {
+    # "code": 200,
+    # "message": "success",
+    # "data": {
+    #     "taskId": "task_12345678"
+    # }
+    # }
     return result["data"]["taskId"]
