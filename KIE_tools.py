@@ -16,7 +16,7 @@ CALLBACK_URL = None
 # 图像生成默认配置
 DEFAULT_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
 DEFAULT_IMAGE_RESOLUTION = "2K"
-DEFAULT_MAX_IMAGES = 1
+DEFAULT_MAX_IMAGES = 2
 
 # 视频生成默认配置
 DEFAULT_ASPECT_RATIO = "landscape"  # portrait
@@ -61,6 +61,13 @@ def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls
     """
     Create a task to edit an image from a prompt by seedream-v4 edit model. Returns the task ID.
     Operation Guide:
+        1. 向用户确认以下信息：
+            ● 图片路径
+            ● 提示词：在不修改用户提示词原意的基础上：
+                ○ 增加对画风的描述：“日本小清新动漫风格，新海诚动漫风格”
+        2. 生成的图片参数为16:9, 2K画质
+        3. 仅返回task ID, 不要说其他信息和对话
+    Rules:
         1. Infer the user's intention. If the user mentions names like the male and female leads and hopes to generate images or videos using image references, but does not explicitly provide URLs, then ask the user for clarification. After the user adds the image path, continue with the task; if the user replies that they still need to generate without the URLs or that they want to generate text-to-video instead, then call the text-to-video tool.
         2. Do not frequently inquire about the user's intention. Only ask questions when the user does not provide necessary information. Do not ask the user questions about the generation parameters.
         3. Do not modify the original prompt words of the user. Only add descriptions of the style and other restrictive descriptions based on them.
@@ -119,6 +126,13 @@ def text_to_video_by_sora2_model_create_task(prompt: str):
     """
     Create a task to generate a 10-second video from a prompt. Returns the task ID.
     Operation Guide:
+        1. 向用户确认以下信息：
+            ● 提示词：在不修改用户提示词原意的基础上：
+                ○ 增加对画风的描述：“日本小清新动漫风格，新海诚动漫风格”
+                ○ 增加一些限制：“不要配乐、不要字幕”
+        2. 生成的视频参数为16:9, 720P画质
+        3. 仅返回task ID, 不要说其他信息和对话
+    Rules:
         1. Infer the user's intention. Use text-to-video generation when the user wants to create an empty scene and does not provide an image URL. If the user provides an image URL or mentions names or pronouns such as "the protagonist" or "the antagonist", and clearly indicates that they want to use image references to generate an image or video, then switch to the image-to-video tool.
         2. Do not frequently ask about the user's intention. Only ask questions about necessary information when the user does not provide it. Do not ask the user questions about the generation parameters.
         3. Do not change the original prompt words. Only add descriptions of the style and other restrictive descriptions on top of it.
@@ -147,6 +161,14 @@ def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: li
     """
     Create a task to generate a 10-second video from a first frame. Returns the task ID.
     Operation Guide:
+        1. 向用户确认以下信息：
+            ● 图片路径
+            ● 提示词：在不修改用户提示词原意的基础上：
+                ○ 增加对画风的描述：“日本小清新动漫风格，新海诚动漫风格”
+                ○ 增加一些限制：“不要配乐、不要字幕”
+        2. 生成的视频参数为16:9, 720P画质
+        3. 仅返回task ID, 不要说其他信息和对话
+    Rules:
         1. Infer the user's intention. If the user mentions names like the male and female leads and hopes to generate images or videos using image references, but does not explicitly provide URLs, then ask the user for clarification. After the user adds the image path, continue with the task; if the user replies that they still need to generate without the URLs or that they want to generate text-to-video instead, then call the text-to-video tool.
         2. Do not frequently inquire about the user's intention. Only ask questions when the user does not provide necessary information. Do not ask the user questions about the generation parameters.
         3. Do not modify the original prompt words of the user. Only add descriptions of the style and other restrictive descriptions based on them.
@@ -173,16 +195,24 @@ def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: li
 
 
 @tool
-def remove_watermark_from_image_by_seedream_v4_edit_create_task(image_urls: list[str]):
-    """Remove the watermark from the image. Returns the task ID.
+def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]):
+    """
+    Remove the watermark from the image. Returns the task ID.
     Operation Guide:
+    1. 向用户确认以下信息：
+        ● 图片路径
+    2. 为用户补写提示词：在不修改用户提示词原意的基础上, 添加“去掉图片水印”字段
+    3. 生成的图片参数为16:9, 2K画质
+    4. 仅返回task ID, 不要说其他信息和对话
+    Rules:
         1. Do not inquire about the user's intention.
+        2. Do not modify the original prompt words of the user. Only add "去掉图片水印" based on them.
     """
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
         "input": {
-            "prompt": "Remove the watermark from the image.",
+            "prompt": prompt,
             "image_urls": image_urls,
             "image_size": DEFAULT_IMAGE_SIZE,
             "image_resolution": DEFAULT_IMAGE_RESOLUTION,
