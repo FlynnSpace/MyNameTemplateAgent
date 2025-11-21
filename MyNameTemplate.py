@@ -23,7 +23,7 @@ tools = [
     get_task_status,
     text_to_video_by_sora2_model_create_task,
     first_frame_to_video_by_sora2_model_create_task,
-    remove_watermark_from_image_by_seedream_v4_edit_model_create_task
+    remove_watermark_from_image_by_seedream_v4_edit_create_task
     ]  # max function name length is 64
 
 model = ChatOpenAI(model = "gpt-5").bind_tools(tools)
