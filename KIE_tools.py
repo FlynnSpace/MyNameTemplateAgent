@@ -59,16 +59,16 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_to_image_by_nano_pro_create_task(prompt: str, image_urls: list[str]):
+def image_edit_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]):
     payload = {
-        "model": "nano-banana-pro",
+        "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "image_input": image_urls,
-            "image_size": DEFAULT_NanoPro_IMAGE_SIZE,
-            "resolution": DEFAULT_IMAGE_RESOLUTION,
-            "output_format": "png"
+            "image_urls": image_urls,
+            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
+            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
+            "max_images": DEFAULT_MAX_IMAGES
         }
     }
 
