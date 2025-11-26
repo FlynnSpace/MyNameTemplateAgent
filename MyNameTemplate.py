@@ -26,8 +26,8 @@ class AgentResponse(BaseModel):
     suggestions: list[str] = Field(description="The suggestions for the user to choose from")
 
 tools = [
-    text_to_image_by_seedream_v4_model_create_task,
-    image_to_image_by_seedream_v4_edit_model_create_task,
+    # text_to_image_by_seedream_v4_model_create_task,
+    image_to_image_by_nano_pro_create_task,
     get_task_status,
     text_to_video_by_sora2_model_create_task,
     first_frame_to_video_by_sora2_model_create_task,

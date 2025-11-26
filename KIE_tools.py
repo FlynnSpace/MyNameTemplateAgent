@@ -22,7 +22,8 @@ RECORD_INFO_URL = f"{API_BASE_URL}/jobs/recordInfo"
 CALLBACK_URL = None
 
 # 图像生成默认配置
-DEFAULT_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
+DEFAULT_SeedDream_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
+DEFAULT_NanoPro_IMAGE_SIZE = "16:9"
 DEFAULT_IMAGE_RESOLUTION = "2K"
 DEFAULT_MAX_IMAGES = 1
 
@@ -45,7 +46,7 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "image_size": DEFAULT_IMAGE_SIZE,
+            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
             "image_resolution": DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
         }
@@ -58,16 +59,16 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]):
+def image_to_image_by_nano_pro_create_task(prompt: str, image_urls: list[str]):
     payload = {
-        "model": "bytedance/seedream-v4-edit",
+        "model": "nano-banana-pro",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "image_urls": image_urls,
-            "image_size": DEFAULT_IMAGE_SIZE,
-            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
-            "max_images": DEFAULT_MAX_IMAGES
+            "image_input": image_urls,
+            "image_size": DEFAULT_NanoPro_IMAGE_SIZE,
+            "resolution": DEFAULT_IMAGE_RESOLUTION,
+            "output_format": "png"
         }
     }
 
@@ -140,7 +141,7 @@ def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, ima
         "input": {
             "prompt": prompt,
             "image_urls": image_urls,
-            "image_size": DEFAULT_IMAGE_SIZE,
+            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
             "image_resolution": DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
         }
