@@ -13,7 +13,6 @@ from langgraph.prebuilt import ToolNode
 from KIE_tools import *
 from tool_prompts import SYSTEM_PROMPT
 from pydantic import BaseModel, Field
-from langchain.agents import create_agent
 
 
 load_dotenv()
@@ -37,7 +36,7 @@ tools = [
 model = ChatOpenAI(model = "gpt-5-nano",
                  model_kwargs={"response_format": AgentResponse},
                  reasoning_effort="low"   # Can be "low", "medium", or "high"
-                 ).bind_tools(tools)   # Can be "auto", "concise", or detailed"
+                 ).bind_tools(tools, strict=True)   # Can be "auto", "concise", or detailed"
 
 def model_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(tools_description=str(tools)))

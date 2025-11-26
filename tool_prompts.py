@@ -10,7 +10,7 @@ Operation Guide:
 
 
 # 图像编辑工具描述
-IMAGE_EDIT_DESC = """Create a task to edit an image from a prompt by seedream-v4 edit 没有特殊体积. Returns the task ID.
+IMAGE_EDIT_DESC = """Create a task to edit an image from a prompt by nano-banana-pro model. Returns the task ID.
 Operation Guide:
     1. 如果用户没有特殊提及，则提示词修改：在不修改用户提示词原意的基础上，结尾添加对画风的描述：“日本小清新动漫风格，新海诚动漫风格。”
     2. 生成的图片参数为16:9, 2K画质
