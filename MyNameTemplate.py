@@ -1,4 +1,5 @@
 from typing import Annotated, Sequence
+from openai.types.responses.response_reasoning_item import Summary
 from typing_extensions import TypedDict
 from dotenv import load_dotenv  
 from langchain_core.messages import BaseMessage # The foundational class for all message types in LangGraph
@@ -11,12 +12,18 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from KIE_tools import *
 from tool_prompts import SYSTEM_PROMPT
+from pydantic import BaseModel, Field
+from langchain.agents import create_agent
 
 
 load_dotenv()
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
+
+class AgentResponse(BaseModel):
+    answer: str = Field(description="The answer to the user's question")
+    suggestions: list[str] = Field(description="The suggestions for the user to choose from")
 
 tools = [
     text_to_image_by_seedream_v4_model_create_task,
@@ -27,8 +34,10 @@ tools = [
     remove_watermark_from_image_by_seedream_v4_edit_create_task
     ]  # max function name length is 64
 
-model = ChatOpenAI(model = "gpt-5-nano").bind_tools(tools)
-
+model = ChatOpenAI(model = "gpt-5-nano",
+                 model_kwargs={"response_format": AgentResponse},
+                 reasoning_effort="low",   # Can be "low", "medium", or "high"
+                 Summary="auto").bind_tools(tools)   # Can be "auto", "concise", or detailed"
 
 def model_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(tools_description=str(tools)))
