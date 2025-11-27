@@ -1,5 +1,6 @@
 import requests
 import json
+from typing import List, Union
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 import os
@@ -40,7 +41,7 @@ def _get_headers(content_type="application/json"):
     return headers
 
 @tool(description=TEXT_TO_IMAGE_DESC)
-def text_to_image_by_seedream_v4_model_create_task(prompt: str):
+def text_to_image_by_seedream_v4_model_create_task(prompt: str) -> str:
     payload = {
         "model": "bytedance/seedream-v4-text-to-image",
         "callBackUrl": CALLBACK_URL,
@@ -59,7 +60,7 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]):
+def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
@@ -79,7 +80,7 @@ def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls
 
 
 @tool(description=GET_TASK_STATUS_DESC)
-def get_task_status(task_id: str):
+def get_task_status(task_id: str) -> Union[str, dict]:
     params = {"taskId": task_id}
     response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
     result = response.json()
@@ -95,7 +96,7 @@ def get_task_status(task_id: str):
 
 
 @tool(description=TEXT_TO_VIDEO_DESC)
-def text_to_video_by_sora2_model_create_task(prompt: str):
+def text_to_video_by_sora2_model_create_task(prompt: str) -> str:
     payload = {
         "model": "sora-2-text-to-video",
         "callBackUrl": CALLBACK_URL,
@@ -114,7 +115,7 @@ def text_to_video_by_sora2_model_create_task(prompt: str):
 
 
 @tool(description=FIRST_FRAME_TO_VIDEO_DESC)
-def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str]):
+def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str]) -> str:
     payload = {
         "model": "sora-2-image-to-video",
         "callBackUrl": CALLBACK_URL,
@@ -134,7 +135,7 @@ def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: li
 
 
 @tool(description=REMOVE_WATERMARK_DESC)
-def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]):
+def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
