@@ -16,6 +16,7 @@ Use the seedream-v4-edit model to create an image editing task. Returns the Task
 Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.
+- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 """
 
 # 任务状态查询工具描述
@@ -30,6 +31,7 @@ TEXT_TO_VIDEO_DESC = """
 Use the 'sora-2-text-to-video' model to create a task that generates a 10-second video. Returns the Task ID.
 Arguments:
 - prompt (str): The user's video description.
+- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 """
 
 # 首帧生成视频工具描述
@@ -38,6 +40,7 @@ Use the sora-2-image-to-video model to create a task that generates a 10-second 
 Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
+- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 """
 
 # 去除水印工具描述
@@ -46,6 +49,7 @@ Use the seedream-v4-edit model to remove the watermark from the image. Returns t
 Arguments:
 - prompt (str): The user's description of the image.
 - image_urls (list[str]): A list of URLs of the reference images.
+- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 """
 
 # AI 助手的系统提示词

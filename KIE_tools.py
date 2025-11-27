@@ -60,7 +60,7 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str) -> str:
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]) -> str:
+def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str],  seed: int) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
@@ -96,7 +96,7 @@ def get_task_status(task_id: str) -> Union[str, dict]:
 
 
 @tool(description=TEXT_TO_VIDEO_DESC)
-def text_to_video_by_sora2_model_create_task(prompt: str) -> str:
+def text_to_video_by_sora2_model_create_task(prompt: str, seed: int) -> str:
     payload = {
         "model": "sora-2-text-to-video",
         "callBackUrl": CALLBACK_URL,
@@ -115,7 +115,7 @@ def text_to_video_by_sora2_model_create_task(prompt: str) -> str:
 
 
 @tool(description=FIRST_FRAME_TO_VIDEO_DESC)
-def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str]) -> str:
+def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: list[str], seed: int) -> str:
     payload = {
         "model": "sora-2-image-to-video",
         "callBackUrl": CALLBACK_URL,
@@ -135,7 +135,7 @@ def  first_frame_to_video_by_sora2_model_create_task(prompt: str, image_urls: li
 
 
 @tool(description=REMOVE_WATERMARK_DESC)
-def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]) -> str:
+def remove_watermark_from_image_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str], seed: int) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
