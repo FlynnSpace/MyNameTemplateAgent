@@ -59,7 +59,7 @@ def text_to_image_by_seedream_v4_model_create_task(prompt: str):
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_edit_by_seedream_v4_edit_create_task(prompt: str, image_urls: list[str]):
+def image_to_image_by_seedream_v4_edit_model_create_task(prompt: str, image_urls: list[str]):
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,

@@ -26,7 +26,7 @@ class AgentResponse(BaseModel):
 
 tools = [
     # text_to_image_by_seedream_v4_model_create_task,
-    image_edit_by_seedream_v4_edit_create_task,
+    image_to_image_by_seedream_v4_edit_model_create_task,
     get_task_status,
     text_to_video_by_sora2_model_create_task,
     first_frame_to_video_by_sora2_model_create_task,
