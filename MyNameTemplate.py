@@ -35,7 +35,7 @@ tools = [
 
 model = ChatOpenAI(model = "gpt-5-nano",
                  model_kwargs={"response_format": AgentResponse},
-                 reasoning_effort="low"   # Can be "low", "medium", or "high"
+                 reasoning_effort="medium"   # Can be "low", "medium", or "high"
                  ).bind_tools(tools, strict=True)   # Can be "auto", "concise", or detailed"
 
 def model_call(state:AgentState) -> AgentState:
