@@ -19,8 +19,8 @@ Arguments:
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 """
 
-IMAGE_EDIT_GEMINI_DESC = """
-Use the Nano Banana model to create an image editing task. Returns the Task ID only.
+IMAGE_EDIT_BANANA_PRO_DESC = """
+Use the Nano Banana Pro model to create an image editing task. Returns the Task ID only.
 Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.

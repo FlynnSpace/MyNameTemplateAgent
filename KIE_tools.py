@@ -1,18 +1,30 @@
 import requests
 import json
+import http.client
+import uuid
+import threading
 from typing import List, Union
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 import os
+from supabase import create_client, Client
 from tool_prompts import *
 
 load_dotenv()
 kie_api_key = os.getenv("KIE_API_KEY")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+supabase_url = os.getenv("VITE_SUPABASE_URL") or "https://rgmbmxczzgjtinoncdor.supabase.co"
+supabase_key = os.getenv("VITE_SUPABASE_ANON_KEY")
+
+# 初始化 Supabase
+supabase: Client = create_client(supabase_url, supabase_key) if supabase_key else None
 
 # API 配置常量
 API_BASE_URL = "https://api.kie.ai/api/v1"
 CREATE_TASK_URL = f"{API_BASE_URL}/jobs/createTask"
 RECORD_INFO_URL = f"{API_BASE_URL}/jobs/recordInfo"
+GEMINI_API_HOST = "api.ppinfra.com"
+GEMINI_API_PATH = "/v3/gemini-3-pro-image-edit"
 CALLBACK_URL = None
 
 # 图像生成默认配置
@@ -31,6 +43,18 @@ def _get_headers(content_type="application/json"):
     headers = {"Authorization": f"Bearer {kie_api_key}"}
     if content_type:
         headers["Content-Type"] = content_type
+    return headers
+
+
+def _get_headers_gemini():
+    headers = {
+        'Authorization': f'Bearer {gemini_api_key}',
+        'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
+        'Content-Type': 'application/json',
+        'Accept': '*/*',
+        'Host': GEMINI_API_HOST,
+        'Connection': 'keep-alive'
+    }
     return headers
 
 @tool(description=TEXT_TO_IMAGE_DESC)
@@ -71,6 +95,84 @@ def image_edit_by_kie_seedream_v4_create_task(prompt: str, image_urls: list[str]
     
     return result["data"]["taskId"]
 
+
+@tool(description=IMAGE_EDIT_BANANA_PRO_DESC)
+def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str],  seed: int) -> str:
+    # 1. 生成本地 Task ID
+    task_id = str(uuid.uuid4())
+    
+    # 2. 定义后台任务函数
+    def run_background_task(tid, p_prompt, p_urls):
+        try:
+            # 执行耗时的 API 请求
+            conn = http.client.HTTPSConnection(GEMINI_API_HOST)
+            
+            payload = json.dumps({
+                "prompt": p_prompt,
+                "image_urls": p_urls,
+                "aspect_ratio": DEFAULT_NanoPro_IMAGE_SIZE,
+                "size": DEFAULT_IMAGE_RESOLUTION
+            })
+            
+            headers = _get_headers_gemini()
+            
+            conn.request("POST", GEMINI_API_PATH, payload, headers)
+            
+            res = conn.getresponse()
+            data = res.read()
+            result = json.loads(data.decode("utf-8"))
+            
+            image_url = ""
+            # 解析返回的 Image URL
+            if "image_urls" in result and isinstance(result["image_urls"], list) and len(result["image_urls"]) > 0:
+                image_url = result["image_urls"][0]
+            
+            # --- 图片转存 ---
+            if image_url:
+                try:
+                    transfer_conn = http.client.HTTPSConnection("oss-trar-server-vwsitywsrq.cn-hangzhou.fcapp.run")
+                    transfer_payload = json.dumps({"url": image_url})
+                    transfer_headers = {
+                        'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
+                        'Content-Type': 'application/json',
+                        'Accept': '*/*',
+                        'Connection': 'keep-alive'
+                    }
+                    transfer_conn.request("POST", "/transfer", transfer_payload, transfer_headers)
+                    transfer_res = transfer_conn.getresponse()
+                    transfer_data = transfer_res.read()
+                    transfer_result = json.loads(transfer_data.decode("utf-8"))
+                    
+                    if "url" in transfer_result:
+                        image_url = transfer_result["url"]
+                        print(f"✅ Image transferred successfully: {image_url}")
+                    else:
+                        print(f"⚠️ Transfer failed, using original URL. Response: {transfer_result}")
+                        
+                except Exception as transfer_e:
+                    print(f"⚠️ Transfer error: {transfer_e}")
+                    # 如果转存失败，继续使用原始 URL
+                
+            # 存入 Supabase
+            if supabase and image_url:
+                try:
+                    db_data = {
+                        "id": tid,
+                        "url": image_url,
+                    }
+                    supabase.table("ppio_task_status").insert(db_data).execute()
+                except Exception as db_e:
+                    print(f"Error saving to Supabase: {db_e}")
+                    
+        except Exception as e:
+            print(f"Background task error: {e}")
+
+    # 3. 启动后台线程
+    thread = threading.Thread(target=run_background_task, args=(task_id, prompt, image_urls))
+    thread.start()
+    
+    # 4. 立即返回 ID
+    return task_id
 
 @tool(description=GET_TASK_STATUS_DESC)
 def get_task_status(task_id: str) -> Union[str, dict]:
