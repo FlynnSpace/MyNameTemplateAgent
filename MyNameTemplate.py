@@ -33,7 +33,8 @@ tools = [
     remove_watermark_from_image_by_kie_seedream_v4_create_task
     ]  # max function name length is 64
 
-llm = ChatOpenAI(model = "gpt-5-nano")
+llm = ChatOpenAI(model = "gpt-5-nano",
+                 temperature=0.0)
 
 structured_llm = llm.with_structured_output(
     schema=AgentResponse,

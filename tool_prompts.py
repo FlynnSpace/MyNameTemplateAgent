@@ -12,7 +12,7 @@ Arguments:
 
 # 图像编辑工具描述
 IMAGE_EDIT_DESC = """
-Use the seedream-v4-edit model to create an image editing task. Returns the Task ID only.
+Use the seedream-v4-edit model to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.
@@ -20,7 +20,7 @@ Arguments:
 """
 
 IMAGE_EDIT_BANANA_PRO_DESC = """
-Use the Nano Banana Pro model to create an image editing task. Returns the Task ID only.
+Use the Nano Banana Pro model to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.
@@ -36,7 +36,7 @@ If the task is successful, returns the URL of the image.
 
 # 文本生成视频工具描述
 TEXT_TO_VIDEO_DESC = """
-Use the 'sora-2-text-to-video' model to create a task that generates a 10-second video. Returns the Task ID.
+Use the 'sora-2-text-to-video' model to create a task that generates a 10-second video. If users want to generate videos based on text description, must invoke this tool. Returns the Task ID.
 Arguments:
 - prompt (str): The user's video description.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
@@ -44,7 +44,7 @@ Arguments:
 
 # 首帧生成视频工具描述
 FIRST_FRAME_TO_VIDEO_DESC = """
-Use the sora-2-image-to-video model to create a task that generates a 10-second video using a provided image as the first frame. Returns the Task ID.
+Use the sora-2-image-to-video model to create a task that generates a 10-second video using a provided image as the first frame. If users want to generate videos based on reference images, must invoke this tool. Returns the Task ID.
 Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
