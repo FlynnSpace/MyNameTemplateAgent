@@ -34,7 +34,7 @@ def _get_headers(content_type="application/json"):
     return headers
 
 @tool(description=TEXT_TO_IMAGE_DESC)
-def text_to_image_by_seedream_v4_model_create_task(prompt: str) -> str:
+def text_to_image_by_kie_seedream_v4_create_task(prompt: str) -> str:
     payload = {
         "model": "bytedance/seedream-v4-text-to-image",
         "callBackUrl": CALLBACK_URL,
