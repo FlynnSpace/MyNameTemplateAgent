@@ -4,14 +4,7 @@ from typing import List, Union
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 import os
-from tool_prompts import (
-    TEXT_TO_IMAGE_DESC,
-    IMAGE_EDIT_DESC,
-    GET_TASK_STATUS_DESC,
-    TEXT_TO_VIDEO_DESC,
-    FIRST_FRAME_TO_VIDEO_DESC,
-    REMOVE_WATERMARK_DESC
-)
+from tool_prompts import *
 
 load_dotenv()
 kie_api_key = os.getenv("KIE_API_KEY")
