@@ -26,22 +26,29 @@ class AgentResponse(BaseModel):
 
 tools = [
     # text_to_image_by_seedream_v4_model_create_task,
-    image_to_image_by_seedream_v4_edit_model_create_task,
+    image_edit_by_kie_seedream_v4_create_task,
     get_task_status,
-    text_to_video_by_sora2_model_create_task,
-    first_frame_to_video_by_sora2_model_create_task,
-    remove_watermark_from_image_by_seedream_v4_edit_create_task
+    text_to_video_by_kie_sora2_create_task,
+    first_frame_to_video_by_kie_sora2_create_task,
+    remove_watermark_from_image_by_kie_seedream_v4_create_task
     ]  # max function name length is 64
 
-model = ChatOpenAI(model = "gpt-5-nano",
-                 model_kwargs={"response_format": AgentResponse},
-                 reasoning_effort="medium"   # Can be "low", "medium", or "high"
-                 ).bind_tools(tools, strict=True)   # Can be "auto", "concise", or detailed"
+llm = ChatOpenAI(model = "gpt-5-nano")
+
+structured_llm = llm.with_structured_output(
+    schema=AgentResponse,
+    method="json_schema",
+    strict=True,
+    tools=tools,
+    include_raw=True,
+    reasoning_effort="medium"  # Can be "low", "medium", or "high"
+    )
 
 def model_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(tools_description=str(tools)))
-    response = model.invoke([system_prompt] + state["messages"])
-    return {"messages": [response]}
+    response = structured_llm.invoke([system_prompt] + state["messages"])
+    raw_response = response["raw"]
+    return {"messages": [raw_response]}
 
 
 def should_continue(state: AgentState): 
