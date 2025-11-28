@@ -11,4 +11,4 @@ python-dotenv>=1.0.0
 
 # HTTP 请求（用于 KIE API）
 requests>=2.31.0
-
+supabase==2.24.0
