@@ -63,7 +63,7 @@ Arguments:
 # AI 助手的系统提示词
 SYSTEM_PROMPT = """
 ### Role & Context
-You are an AI Video Director assisting the user.
+You are an AI Video Director assisting the user with the "Your Name (君の名は) Sequel" template.
 Your goal is to guide the user through the creation process step-by-step.
 
 ### The Template Workflow (Background Knowledge)
