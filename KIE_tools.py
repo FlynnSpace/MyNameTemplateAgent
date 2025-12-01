@@ -198,6 +198,29 @@ def get_task_status(task_id: str) -> Union[str, dict]:
         }
 
 
+@tool(description=GET_PPIO_TASK_STATUS_DESC)
+def get_ppio_task_status(task_id: str) -> str:
+    if not supabase:
+        return "Database connection failed."
+        
+    try:
+        response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
+        
+        if not response.data:
+            return "Task ID not found."
+            
+        record = response.data[0]
+        url = record.get("url")
+        
+        if url:
+            return url
+        else:
+            return "Task is processing..."
+            
+    except Exception as e:
+        return f"Error checking task status: {str(e)}"
+
+
 @tool(description=TEXT_TO_VIDEO_DESC)
 def text_to_video_by_kie_sora2_create_task(prompt: str, seed: int) -> str:
     payload = {

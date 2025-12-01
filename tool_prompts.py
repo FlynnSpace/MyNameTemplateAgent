@@ -34,6 +34,18 @@ If the task is not successful, returns error code and error message.
 If the task is successful, returns the URL of the image.
 """
 
+# PPIO 任务状态查询工具描述
+GET_PPIO_TASK_STATUS_DESC = """
+Returns the status of the PPIO tasks (Banana Pro).
+Arguments:
+- task_id (str): The ID of the task to check.
+
+Returns:
+- If the task is found but processing (URL is empty): "Task is processing..."
+- If the task is successful: The URL of the generated image.
+- If the task ID is not found: "Task ID not found."
+"""
+
 # 文本生成视频工具描述
 TEXT_TO_VIDEO_DESC = """
 Use the 'sora-2-text-to-video' model to create a task that generates a 10-second video. If users want to generate videos based on text description, must invoke this tool. Returns the Task ID.
