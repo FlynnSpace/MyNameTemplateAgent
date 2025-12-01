@@ -100,8 +100,19 @@ def image_edit_by_kie_seedream_v4_create_task(prompt: str, image_urls: list[str]
 def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str],  seed: int) -> str:
     # 1. 生成本地 Task ID
     task_id = str(uuid.uuid4())
+
+    # 2. 立即入库占位 (URL为空)
+    if supabase:
+        try:
+            db_data = {
+                "id": task_id,
+                "url": ""  # 初始为空，等待后台更新
+            }
+            supabase.table("ppio_task_status").insert(db_data).execute()
+        except Exception as db_e:
+            print(f"Error initializing task in Supabase: {db_e}")
     
-    # 2. 定义后台任务函数
+    # 3. 定义后台任务函数
     def run_background_task(tid, p_prompt, p_urls):
         try:
             # 执行耗时的 API 请求
@@ -153,25 +164,22 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
                     print(f"⚠️ Transfer error: {transfer_e}")
                     # 如果转存失败，继续使用原始 URL
                 
-            # 存入 Supabase
+            # 更新 Supabase (更新 URL)
             if supabase and image_url:
                 try:
-                    db_data = {
-                        "id": tid,
-                        "url": image_url,
-                    }
-                    supabase.table("ppio_task_status").insert(db_data).execute()
+                    # 根据 ID 更新 URL
+                    supabase.table("ppio_task_status").update({"url": image_url}).eq("id", tid).execute()
                 except Exception as db_e:
-                    print(f"Error saving to Supabase: {db_e}")
+                    print(f"Error updating Supabase: {db_e}")
                     
         except Exception as e:
             print(f"Background task error: {e}")
 
-    # 3. 启动后台线程
+    # 4. 启动后台线程
     thread = threading.Thread(target=run_background_task, args=(task_id, prompt, image_urls))
     thread.start()
     
-    # 4. 立即返回 ID
+    # 5. 立即返回 ID
     return task_id
 
 @tool(description=GET_TASK_STATUS_DESC)
