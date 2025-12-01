@@ -182,44 +182,6 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
     # 5. 立即返回 ID
     return task_id
 
-@tool(description=GET_TASK_STATUS_DESC)
-def get_task_status(task_id: str) -> Union[str, dict]:
-    params = {"taskId": task_id}
-    response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
-    result = response.json()
-
-    if result["data"]["state"] == "success":
-        return json.loads(result['data']['resultJson'])['resultUrls'][0]
-    else:
-        return {
-            "status": result["data"]["state"],
-            "code": result["data"]["failCode"],
-            "message": result["data"]["failMsg"]
-        }
-
-
-@tool(description=GET_PPIO_TASK_STATUS_DESC)
-def get_ppio_task_status(task_id: str) -> str:
-    if not supabase:
-        return "Database connection failed."
-        
-    try:
-        response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
-        
-        if not response.data:
-            return "Task ID not found."
-            
-        record = response.data[0]
-        url = record.get("url")
-        
-        if url:
-            return url
-        else:
-            return "Task is processing..."
-            
-    except Exception as e:
-        return f"Error checking task status: {str(e)}"
-
 
 @tool(description=TEXT_TO_VIDEO_DESC)
 def text_to_video_by_kie_sora2_create_task(prompt: str, seed: int) -> str:
@@ -278,3 +240,42 @@ def remove_watermark_from_image_by_kie_seedream_v4_create_task(prompt: str, imag
     result = response.json()
     
     return result["data"]["taskId"]
+
+
+@tool(description=GET_TASK_STATUS_DESC)
+def get_task_status(task_id: str) -> Union[str, dict]:
+    params = {"taskId": task_id}
+    response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
+    result = response.json()
+
+    if result["data"]["state"] == "success":
+        return json.loads(result['data']['resultJson'])['resultUrls'][0]
+    else:
+        return {
+            "status": result["data"]["state"],
+            "code": result["data"]["failCode"],
+            "message": result["data"]["failMsg"]
+        }
+
+
+@tool(description=GET_PPIO_TASK_STATUS_DESC)
+def get_ppio_task_status(task_id: str) -> str:
+    if not supabase:
+        return "Database connection failed."
+        
+    try:
+        response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
+        
+        if not response.data:
+            return "Task ID not found."
+            
+        record = response.data[0]
+        url = record.get("url")
+        
+        if url:
+            return url
+        else:
+            return "Task is processing..."
+            
+    except Exception as e:
+        return f"Error checking task status: {str(e)}"
