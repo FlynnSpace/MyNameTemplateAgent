@@ -19,6 +19,8 @@ load_dotenv()
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    last_task_id: str | None
+    last_task_config: dict | None
 
 class AgentResponse(BaseModel):
     answer: str = Field(description="The answer to the user's question")
@@ -46,8 +48,59 @@ structured_llm = llm.with_structured_output(
     reasoning_effort="medium"  # Can be "low", "medium", or "high"
     )
 
+
+def recorder_node(state: AgentState):
+    """记录器节点：从工具执行结果中提取状态"""
+    messages = state["messages"]
+    new_state = {}
+    
+    # 倒序遍历寻找最近的 AIMessage (获取参数)
+    last_ai_message = None
+    for msg in reversed(messages):
+        # 检查是否是 AI 消息且有 tool_calls
+        if msg.type == "ai" and hasattr(msg, "tool_calls") and msg.tool_calls:
+            last_ai_message = msg
+            break
+            
+    if not last_ai_message:
+        return {}
+
+    # 建立 ID 到参数的映射
+    call_id_to_args = {call["id"]: call["args"] for call in last_ai_message.tool_calls}
+    call_id_to_name = {call["id"]: call["name"] for call in last_ai_message.tool_calls}
+
+    # 倒序查找最近的 ToolMessage
+    for msg in reversed(messages):
+        if msg.type == "tool":
+            tool_call_id = msg.tool_call_id
+            if tool_call_id in call_id_to_args:
+                tool_name = call_id_to_name[tool_call_id]
+                
+                # 只有生成类任务才需要记录
+                if "create_task" in tool_name:
+                    # 提取 ID (content) 和 Config (args)
+                    new_state["last_task_id"] = str(msg.content)
+                    new_state["last_task_config"] = call_id_to_args[tool_call_id]
+                    break # 只记录最近的一个
+        elif msg.type == "ai":
+            # 遇到 AI 消息停止，说明这轮 Tool 执行的消息已经遍历完了
+            break
+            
+    return new_state
+
+
 def model_call(state:AgentState) -> AgentState:
-    system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(tools_description=str(tools)))
+    # 1. 注入动态上下文
+    context_str = ""
+    if state.get("last_task_id"):
+        context_str += f"\n[MEMORY] Last Task ID: {state['last_task_id']}"
+    if state.get("last_task_config"):
+        context_str += f"\n[MEMORY] Last Task Config: {state['last_task_config']}"
+        
+    # 2. 组合 Prompt
+    system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(tools_description=str(tools)) + context_str)
+    
+    # 3. 调用模型
     response = structured_llm.invoke([system_prompt] + state["messages"])
     raw_response = response["raw"]
     return {"messages": [raw_response]}
@@ -69,6 +122,7 @@ graph.add_node("our_agent", model_call)
 
 tool_node = ToolNode(tools=tools)
 graph.add_node("tools", tool_node)
+graph.add_node("recorder", recorder_node)
 
 graph.set_entry_point("our_agent")
 
@@ -81,7 +135,8 @@ graph.add_conditional_edges(
     },
 )
 
-graph.add_edge("tools", "our_agent")
+graph.add_edge("tools", "recorder")
+graph.add_edge("recorder", "our_agent")
 
 app = graph.compile()
 

@@ -267,7 +267,7 @@ def get_ppio_task_status(task_id: str) -> str:
         response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
         
         if not response.data:
-            return "Task ID not found."
+            return "Task ID not found. Tell the user to generate a new task."
             
         record = response.data[0]
         url = record.get("url")
@@ -275,7 +275,7 @@ def get_ppio_task_status(task_id: str) -> str:
         if url:
             return url
         else:
-            return "Task is processing..."
+            return "Task is processing. Tell the user to try again later."
             
     except Exception as e:
-        return f"Error checking task status: {str(e)}"
+        return f"Error checking task status: {str(e)}. Tell the user to try again later."
