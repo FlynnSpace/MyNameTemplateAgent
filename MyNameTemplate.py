@@ -21,6 +21,8 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     last_task_id: str | None
     last_task_config: dict | None
+    global_config: dict | None
+    available_assets: list[dict] | None
 
 class AgentResponse(BaseModel):
     answer: str = Field(description="The answer to the user's question")
@@ -92,6 +94,19 @@ def recorder_node(state: AgentState):
 def model_call(state:AgentState) -> AgentState:
     # 1. 注入动态上下文
     context_str = ""
+    
+    # 注入素材库
+    if state.get("available_assets"):
+        context_str += "\n### [AVAILABLE REFERENCE ASSETS]\n"
+        for idx, asset in enumerate(state["available_assets"]):
+            context_str += f"{idx+1}. {asset.get('desc', 'Image')}: {asset.get('url')}\n"
+
+    # 注入全局风格配置
+    if state.get("global_config"):
+        import json
+        context_str += f"\n### [GLOBAL CONFIG]\n{json.dumps(state['global_config'], ensure_ascii=False)}\n"
+        context_str += "INSTRUCTION: Always use these parameters (resolution, aspect_ratio, art_style, etc.) when calling tools unless the user explicitly overrides them in query.\n"
+
     if state.get("last_task_id"):
         context_str += f"\n[MEMORY] Last Task ID: {state['last_task_id']}"
     if state.get("last_task_config"):
@@ -172,18 +187,31 @@ async def chat_async():
     while True:
         user_input = input("你: ")
         
-        # 检查退出命令
-        if user_input.lower().strip() in ["退出", "exit", "quit", "结束", "再见"]:
-            print("\nAI: 再见！期待下次为你创作精彩内容。👋\n")
-            break
-        
-        # 检查空输入
-        if not user_input.strip():
-            print("AI: 请输入有效的内容。\n")
-            continue
-        
-        # 添加用户消息到 state
-        state["messages"].append(HumanMessage(content=user_input))
+
+        # 尝试解析 JSON 输入
+        import json
+        try:
+            input_data = json.loads(user_input)
+            query = input_data.get("user_query", "")
+            # 显式覆盖 available_assets
+            # 无论 input_data 中是否有 references，都用其值（或空列表）覆盖 State
+            # 这样保证了 Reference Assets 是跟随当前 Prompt 的
+            state["available_assets"] = input_data.get("references", [])
+            
+            # 添加用户消息 (只包含 query)
+            state["messages"].append(HumanMessage(content=query))
+            print(f"\n[系统] 已加载配置: {len(state.get('available_assets', []))} 个素材, Config 已更新")
+            
+        except json.JSONDecodeError:
+            # 普通文本输入 -> 视为没有携带任何新素材，必须清空上一轮的 Assets
+            state["available_assets"] = []
+            # Config 可以选择保留（因为它通常是全局的），或者也清空？
+            # 根据你的需求"每次都根据用户的新提问来决定"，这里最好也重置，或者是保持默认。
+            # 但通常 Config (风格) 是相对稳定的，Assets (素材) 是易变的。
+            # 为了安全起见，且符合"无状态"设计，我们这里选择不主动清空 Config (假设用户没传就是沿用旧的或者默认)，
+            # 但 Assets 必须清空。
+            
+            state["messages"].append(HumanMessage(content=user_input))
         
         # 使用 Token 级流式输出
         print()

@@ -7,7 +7,8 @@ TEXT_TO_IMAGE_DESC = """
 Use the seedream-v4-text-to-image model to create a task that generates an image. Returns the Task ID.
 Arguments:
 - prompt (str): The user's image description.
-
+- resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
+- aspect_ratio (str): Image aspect ratio (e.g., "landscape_16_9").
 """
 
 # 图像编辑工具描述
@@ -17,6 +18,8 @@ Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
+- aspect_ratio (str): Image aspect ratio (e.g., "landscape_16_9").
 """
 
 IMAGE_EDIT_BANANA_PRO_DESC = """
@@ -25,6 +28,8 @@ Arguments:
 - prompt (str): The user's description of the image. 
 - image_urls (list[str]): A list of URLs of the reference images.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- resolution (str): Image resolution. MUST be one of: ["1K", "2K", "4K"].
+- aspect_ratio (str): Image aspect ratio. MUST be one of: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"].
 """
 
 # 任务状态查询工具描述
@@ -52,6 +57,9 @@ Use the 'sora-2-text-to-video' model to create a task that generates a 10-second
 Arguments:
 - prompt (str): The user's video description.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- resolution (str): Video resolution (e.g., "720P", "1080P").
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
 # 首帧生成视频工具描述
@@ -61,6 +69,8 @@ Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
 # 去除水印工具描述
@@ -85,18 +95,22 @@ Keep this workflow in mind as the roadmap, but **execute only ONE step at a time
 2. **Scene Realization**: Generate a video using the image from Step 1 or text description.
 
 ### ⚠️ Critical Execution Rules (MUST FOLLOW)
-1. **Direct Action Protocol (NO CHATTER)**: 
+1. **ASSET & CONFIG PROTOCOL**:
+   - **Assets**: Check `[AVAILABLE REFERENCE ASSETS]` first. If the user mentions "background" or "character", map it to the URL in the list.
+   - **Config**: You MUST apply the values from `[GLOBAL CONFIG]` (e.g., resolution, aspect_ratio, art_style) to every tool call, overriding default values. Except the user explicitly mentions them in query.
+
+2. **Direct Action Protocol (NO CHATTER)**: 
    - If the user provides sufficient intent and parameters (e.g., Prompt + necessary URL), **IMMEDIATELY CALL THE TOOL**.
    - **URL HANDLING**: Trust the `[MEMORY] Last Task ID` to retrieve the URL. **NEVER** pass a `task_id` directly into an `image_urls` parameter.
    - Do NOT say "Okay, I will do this." Do NOT ask "Are you sure?". Just run the tool.
    - **Exception**: Only ask for clarification if a critical asset (specifically the reference image) is missing. Please just ask the user like "请选择或者上传一张参考图", do NOT mention "URL" or technical terms.
 
-2. **Post-Tool Execution Protocol (Hiding Tech Details)**:
+3. **Post-Tool Execution Protocol (Hiding Tech Details)**:
    - When a tool returns a `task_id`, treat it as a SUCCESS signal.
    - **FORBIDDEN**: Do NOT output the `task_id` or any technical identifiers in your answer.
    - **REQUIRED**: Simply inform the user that the generation task has started and the result will automatically appear in the "创作中心" .
 
-3. **Output Format & Cleanliness (Anti-Repetition)**:
+4. **Output Format & Cleanliness (Anti-Repetition)**:
    - Your response format is strict JSON with keys: "answer" and "suggestions".
    - **CLEAN ANSWER RULE**: The `answer` field is for conversational response ONLY. **DO NOT** list, mention, or repeat the content of `suggestions` inside the `answer`. 
    - *Reasoning*: The UI will automatically render `suggestions` as buttons. Repeating them in `answer` causes visual duplication and bad UX.

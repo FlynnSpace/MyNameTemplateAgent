@@ -29,13 +29,13 @@ CALLBACK_URL = None
 
 # 图像生成默认配置
 DEFAULT_SeedDream_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
-DEFAULT_NanoPro_IMAGE_SIZE = "16:9"
-DEFAULT_IMAGE_RESOLUTION = "1K"
+DEFAULT_NanoPro_IMAGE_SIZE = "16:9"  # 16:9, 9:16, 1:1, 4:3, 3:4, 21:9
+DEFAULT_IMAGE_RESOLUTION = "1K"  # 1K, 2K, 4K
 DEFAULT_MAX_IMAGES = 1
 
 # 视频生成默认配置
 DEFAULT_ASPECT_RATIO = "landscape"  # portrait
-DEFAULT_N_FRAMES = "10"
+DEFAULT_N_FRAMES = "10"  # 10, 15
 
 
 def _get_headers(content_type="application/json"):
@@ -58,14 +58,18 @@ def _get_headers_gemini():
     return headers
 
 @tool(description=TEXT_TO_IMAGE_DESC)
-def text_to_image_by_kie_seedream_v4_create_task(prompt: str) -> str:
+def text_to_image_by_kie_seedream_v4_create_task(
+    prompt: str, 
+    resolution: str = DEFAULT_IMAGE_RESOLUTION, 
+    aspect_ratio: str = DEFAULT_SeedDream_IMAGE_SIZE
+    ) -> str:
     payload = {
         "model": "bytedance/seedream-v4-text-to-image",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
-            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
+            "image_size": aspect_ratio or DEFAULT_SeedDream_IMAGE_SIZE,
+            "image_resolution": resolution or DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
         }
     }
@@ -77,15 +81,21 @@ def text_to_image_by_kie_seedream_v4_create_task(prompt: str) -> str:
 
 
 @tool(description=IMAGE_EDIT_DESC)
-def image_edit_by_kie_seedream_v4_create_task(prompt: str, image_urls: list[str],  seed: int) -> str:
+def image_edit_by_kie_seedream_v4_create_task(
+    prompt: str,
+    image_urls: list[str],  
+    seed: int, 
+    resolution: str = DEFAULT_IMAGE_RESOLUTION,
+    aspect_ratio: str = DEFAULT_SeedDream_IMAGE_SIZE
+    ) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
             "image_urls": image_urls,
-            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
-            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
+            "image_size": aspect_ratio or DEFAULT_SeedDream_IMAGE_SIZE,
+            "image_resolution": resolution or DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
         }
     }
@@ -97,7 +107,13 @@ def image_edit_by_kie_seedream_v4_create_task(prompt: str, image_urls: list[str]
 
 
 @tool(description=IMAGE_EDIT_BANANA_PRO_DESC)
-def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str],  seed: int) -> str:
+def image_edit_by_ppio_banana_pro_create_task(
+    prompt: str,
+    image_urls: list[str],  
+    seed: int, 
+    resolution: str = DEFAULT_IMAGE_RESOLUTION, 
+    aspect_ratio: str = DEFAULT_NanoPro_IMAGE_SIZE
+    ) -> str:
     # 1. 生成本地 Task ID
     task_id = str(uuid.uuid4())
 
@@ -113,7 +129,7 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
             print(f"Error initializing task in Supabase: {db_e}")
     
     # 3. 定义后台任务函数
-    def run_background_task(tid, p_prompt, p_urls):
+    def run_background_task(tid, p_prompt, p_urls, p_resolution, p_aspect_ratio):
         try:
             # 执行耗时的 API 请求
             conn = http.client.HTTPSConnection(GEMINI_API_HOST)
@@ -121,8 +137,8 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
             payload = json.dumps({
                 "prompt": p_prompt,
                 "image_urls": p_urls,
-                "aspect_ratio": DEFAULT_NanoPro_IMAGE_SIZE,
-                "size": DEFAULT_IMAGE_RESOLUTION
+                "aspect_ratio": p_aspect_ratio or DEFAULT_NanoPro_IMAGE_SIZE,
+                "size": p_resolution or DEFAULT_IMAGE_RESOLUTION
             })
             
             headers = _get_headers_gemini()
@@ -176,7 +192,7 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
             print(f"Background task error: {e}")
 
     # 4. 启动后台线程
-    thread = threading.Thread(target=run_background_task, args=(task_id, prompt, image_urls))
+    thread = threading.Thread(target=run_background_task, args=(task_id, prompt, image_urls, resolution, aspect_ratio))
     thread.start()
     
     # 5. 立即返回 ID
@@ -184,14 +200,19 @@ def image_edit_by_ppio_banana_pro_create_task(prompt: str, image_urls: list[str]
 
 
 @tool(description=TEXT_TO_VIDEO_DESC)
-def text_to_video_by_kie_sora2_create_task(prompt: str, seed: int) -> str:
+def text_to_video_by_kie_sora2_create_task(
+    prompt: str, 
+    seed: int,
+    aspect_ratio: str = DEFAULT_ASPECT_RATIO, 
+    n_frames: str = DEFAULT_N_FRAMES
+    ) -> str:
     payload = {
         "model": "sora-2-text-to-video",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
-            "aspect_ratio": DEFAULT_ASPECT_RATIO,
-            "n_frames": DEFAULT_N_FRAMES,
+            "aspect_ratio": aspect_ratio or DEFAULT_ASPECT_RATIO,
+            "n_frames": n_frames or DEFAULT_N_FRAMES,
             "remove_watermark": True
         }
     }
@@ -203,15 +224,21 @@ def text_to_video_by_kie_sora2_create_task(prompt: str, seed: int) -> str:
 
 
 @tool(description=FIRST_FRAME_TO_VIDEO_DESC)
-def  first_frame_to_video_by_kie_sora2_create_task(prompt: str, image_urls: list[str], seed: int) -> str:
+def  first_frame_to_video_by_kie_sora2_create_task(
+    prompt: str, 
+    image_urls: list[str], 
+    seed: int, 
+    aspect_ratio: str = DEFAULT_ASPECT_RATIO, 
+    n_frames: str = DEFAULT_N_FRAMES
+    ) -> str:
     payload = {
         "model": "sora-2-image-to-video",
         "callBackUrl": CALLBACK_URL,
         "input": {
                     "prompt": prompt,
                     "image_urls": image_urls,
-                    "aspect_ratio": DEFAULT_ASPECT_RATIO,
-                    "n_frames": DEFAULT_N_FRAMES,
+                    "aspect_ratio": aspect_ratio or DEFAULT_ASPECT_RATIO,
+                    "n_frames": n_frames or DEFAULT_N_FRAMES,
                     "remove_watermark": True
         }
     }
@@ -223,15 +250,17 @@ def  first_frame_to_video_by_kie_sora2_create_task(prompt: str, image_urls: list
 
 
 @tool(description=REMOVE_WATERMARK_DESC)
-def remove_watermark_from_image_by_kie_seedream_v4_create_task(prompt: str, image_urls: list[str], seed: int) -> str:
+def remove_watermark_from_image_by_kie_seedream_v4_create_task(
+    prompt: str, 
+    image_urls: list[str], 
+    seed: int, 
+    ) -> str:
     payload = {
         "model": "bytedance/seedream-v4-edit",
         "callBackUrl": CALLBACK_URL,
         "input": {
             "prompt": prompt,
             "image_urls": image_urls,
-            "image_size": DEFAULT_SeedDream_IMAGE_SIZE,
-            "image_resolution": DEFAULT_IMAGE_RESOLUTION,
             "max_images": DEFAULT_MAX_IMAGES
         }
     }
