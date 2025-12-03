@@ -15,7 +15,7 @@ Arguments:
 IMAGE_EDIT_DESC = """
 Use the seedream-v4-edit model (API provided by KIE) to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
-- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “Keep all other elements, lighting, background, and characters unchanged unless stated.”
+- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “保持其余元素不变。”
 - image_urls (list[str]): URLs of the reference images.
 - seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
@@ -25,7 +25,7 @@ Arguments:
 IMAGE_EDIT_BANANA_PRO_DESC = """
 Use the Nano Banana Pro model (API provided by PPIO) to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
-- prompt (str): Describe ONLY the newest change. Explicitly state “Keep all other elements, lighting, background, composition, and characters unchanged unless stated.”
+- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “保持其余元素不变。”
 - image_urls (list[str]): URLs of the reference images.
 - seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. MUST be one of: ["1K", "2K", "4K"].
