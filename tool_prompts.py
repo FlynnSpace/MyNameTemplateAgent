@@ -4,7 +4,7 @@ KIE 工具描述和操作指南配置文件
 
 # 文本生成图像工具描述
 TEXT_TO_IMAGE_DESC = """
-Use the seedream-v4-text-to-image model to create a task that generates an image. Returns the Task ID.
+Use the seedream-v4-text-to-image model (API provided by KIE) to create a task that generates an image. Returns the Task ID.
 Arguments:
 - prompt (str): The user's image description.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
@@ -13,28 +13,28 @@ Arguments:
 
 # 图像编辑工具描述
 IMAGE_EDIT_DESC = """
-Use the seedream-v4-edit model to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
+Use the seedream-v4-edit model (API provided by KIE) to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
-- prompt (str): The user's description of the image. 
-- image_urls (list[str]): A list of URLs of the reference images.
-- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “Keep all other elements, lighting, background, and characters unchanged unless stated.”
+- image_urls (list[str]): URLs of the reference images.
+- seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
 - aspect_ratio (str): Image aspect ratio (e.g., "landscape_16_9").
 """
 
 IMAGE_EDIT_BANANA_PRO_DESC = """
-Use the Nano Banana Pro model to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
+Use the Nano Banana Pro model (API provided by PPIO) to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
-- prompt (str): The user's description of the image. 
-- image_urls (list[str]): A list of URLs of the reference images.
-- seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
+- prompt (str): Describe ONLY the newest change. Explicitly state “Keep all other elements, lighting, background, composition, and characters unchanged unless stated.”
+- image_urls (list[str]): URLs of the reference images.
+- seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. MUST be one of: ["1K", "2K", "4K"].
 - aspect_ratio (str): Image aspect ratio. MUST be one of: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"].
 """
 
 # 任务状态查询工具描述
-GET_TASK_STATUS_DESC = """
-Returns the status and result URL of the tasks except PPIO tasks (Banana Pro).
+GET_KIE_TASK_STATUS_DESC = """
+Returns the status and result URL of the KIE tasks (Seedream v4, Sora 2).
 If the task is not successful, this tool returns error code and error message.
 If the task is successful, this tool returns the URL of the image.
 """
@@ -64,7 +64,7 @@ Arguments:
 
 # 首帧生成视频工具描述
 FIRST_FRAME_TO_VIDEO_DESC = """
-Use the sora-2-image-to-video model to create a task that generates a 10-second video using a provided image as the first frame. If users want to generate videos based on reference images, must invoke this tool. Returns the Task ID.
+Use the sora-2-image-to-video model (API provided by KIE) to create a task that generates a 10-second video using a provided image as the first frame. If users want to generate videos based on reference images, must invoke this tool. Returns the Task ID.
 Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
@@ -75,7 +75,7 @@ Arguments:
 
 # 去除水印工具描述
 REMOVE_WATERMARK_DESC = """
-Use the seedream-v4-edit model to remove the watermark from the image. Returns the Task ID.
+Use the seedream-v4-edit model (API provided by KIE) to remove the watermark from the image. Returns the Task ID.
 Arguments:
 - prompt (str): The user's description of the image.
 - image_urls (list[str]): A list of URLs of the reference images.
@@ -95,8 +95,7 @@ Keep this workflow in mind as the roadmap, but **execute only ONE step at a time
 2. **Scene Realization**: Generate a video using the image from Step 1 or text description.
 
 ### ⚠️ Critical Execution Rules (MUST FOLLOW)
-1. **ASSET & CONFIG PROTOCOL**:
-   - **Assets**: Check `[AVAILABLE REFERENCE ASSETS]` first. If the user mentions "background" or "character", map it to the URL in the list.
+1. **CONFIG PROTOCOL**:
    - **Config**: You MUST apply the values from `[GLOBAL CONFIG]` (e.g., resolution, aspect_ratio, art_style) to every tool call, overriding default values. Except the user explicitly mentions them in query.
 
 2. **Direct Action Protocol (NO CHATTER)**: 
@@ -134,9 +133,6 @@ When the user DOES NOT provide a new image URL, you MUST check the `[MEMORY]` se
      2. Get the result `url`.
      3. Call the editing tool (`image_edit...` or `first_frame...`) using that `url` + the user's new prompt.
 
-**CRITICAL**: 
-- NEVER guess or invent a URL.
-- If the user wants to "Retry", DO NOT start from scratch with the original image unless explicitly asked. Reuse the previous config.
 """
 
 # old system prompt

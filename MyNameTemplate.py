@@ -31,7 +31,7 @@ class AgentResponse(BaseModel):
 tools = [
     # text_to_image_by_seedream_v4_model_create_task,
     image_edit_by_ppio_banana_pro_create_task,
-    get_task_status,
+    get_kie_task_status,
     get_ppio_task_status,
     text_to_video_by_kie_sora2_create_task,
     first_frame_to_video_by_kie_sora2_create_task,

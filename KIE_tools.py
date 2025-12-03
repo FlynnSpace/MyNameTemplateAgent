@@ -192,7 +192,10 @@ def image_edit_by_ppio_banana_pro_create_task(
             print(f"Background task error: {e}")
 
     # 4. 启动后台线程
-    thread = threading.Thread(target=run_background_task, args=(task_id, prompt, image_urls, resolution, aspect_ratio))
+    thread = threading.Thread(
+        target=run_background_task,
+        args=(task_id, safe_prompt, image_urls, resolution, aspect_ratio)
+    )
     thread.start()
     
     # 5. 立即返回 ID
@@ -271,20 +274,42 @@ def remove_watermark_from_image_by_kie_seedream_v4_create_task(
     return result["data"]["taskId"]
 
 
-@tool(description=GET_TASK_STATUS_DESC)
-def get_task_status(task_id: str) -> Union[str, dict]:
-    params = {"taskId": task_id}
-    response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
-    result = response.json()
+@tool(description=GET_KIE_TASK_STATUS_DESC)
+def get_kie_task_status(task_id: str) -> Union[str, dict]:
+    try:
+        params = {"taskId": task_id}
+        response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
+        
+        if response.status_code != 200:
+            return f"API Error: HTTP {response.status_code}"
+            
+        result = response.json()
 
-    if result["data"]["state"] == "success":
-        return json.loads(result['data']['resultJson'])['resultUrls'][0]
-    else:
-        return {
-            "status": result["data"]["state"],
-            "code": result["data"]["failCode"],
-            "message": result["data"]["failMsg"]
-        }
+        if not result or "data" not in result or not result["data"]:
+            return "Task ID not found in KIE system. Please check if this is a PPIO task ID and use 'get_ppio_task_status' instead."
+
+        data = result["data"]
+        state = data.get("state")
+
+        if state == "success":
+            # 安全解析 JSON
+            try:
+                result_json = json.loads(data.get('resultJson', '{}'))
+                if 'resultUrls' in result_json and result_json['resultUrls']:
+                    return result_json['resultUrls'][0]
+                else:
+                    return "Task succeeded but no result URL found."
+            except json.JSONDecodeError:
+                return "Task succeeded but resultJson is invalid."
+        else:
+            return {
+                "status": state,
+                "code": data.get("failCode"),
+                "message": data.get("failMsg")
+            }
+            
+    except Exception as e:
+        return f"Error checking KIE task status: {str(e)}"
 
 
 @tool(description=GET_PPIO_TASK_STATUS_DESC)
