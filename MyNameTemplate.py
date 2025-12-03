@@ -22,7 +22,7 @@ class AgentState(TypedDict):
     last_task_id: str | None
     last_task_config: dict | None
     global_config: dict | None
-    available_assets: list[dict] | None
+    references: list[dict] | None
 
 class AgentResponse(BaseModel):
     answer: str = Field(description="The answer to the user's question")
@@ -96,9 +96,9 @@ def model_call(state:AgentState) -> AgentState:
     context_str = ""
     
     # 注入素材库
-    if state.get("available_assets"):
-        context_str += "\n### [AVAILABLE REFERENCE ASSETS]\n"
-        for idx, asset in enumerate(state["available_assets"]):
+    if state.get("references"):
+        context_str += "\n### [AVAILABLE REFERENCES]\n"
+        for idx, asset in enumerate(state["references"]):
             context_str += f"{idx+1}. {asset.get('desc', 'Image')}: {asset.get('url')}\n"
 
     # 注入全局风格配置
@@ -193,18 +193,16 @@ async def chat_async():
         try:
             input_data = json.loads(user_input)
             query = input_data.get("user_query", "")
-            # 显式覆盖 available_assets
-            # 无论 input_data 中是否有 references，都用其值（或空列表）覆盖 State
-            # 这样保证了 Reference Assets 是跟随当前 Prompt 的
-            state["available_assets"] = input_data.get("references", [])
+            # 显式覆盖 references
+            state["references"] = input_data.get("references", [])
             
             # 添加用户消息 (只包含 query)
             state["messages"].append(HumanMessage(content=query))
-            print(f"\n[系统] 已加载配置: {len(state.get('available_assets', []))} 个素材, Config 已更新")
+            print(f"\n[系统] 已加载配置: {len(state.get('references', []))} 个素材, Config 已更新")
             
         except json.JSONDecodeError:
-            # 普通文本输入 -> 视为没有携带任何新素材，必须清空上一轮的 Assets
-            state["available_assets"] = []
+            # 普通文本输入 -> 清空上一轮的参考素材
+            state["references"] = []
             # Config 可以选择保留（因为它通常是全局的），或者也清空？
             # 根据你的需求"每次都根据用户的新提问来决定"，这里最好也重置，或者是保持默认。
             # 但通常 Config (风格) 是相对稳定的，Assets (素材) 是易变的。

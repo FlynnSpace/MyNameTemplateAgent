@@ -194,7 +194,7 @@ def image_edit_by_ppio_banana_pro_create_task(
     # 4. 启动后台线程
     thread = threading.Thread(
         target=run_background_task,
-        args=(task_id, safe_prompt, image_urls, resolution, aspect_ratio)
+        args=(task_id, prompt, image_urls, resolution, aspect_ratio)
     )
     thread.start()
     
