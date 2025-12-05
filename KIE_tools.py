@@ -3,18 +3,21 @@ import json
 import http.client
 import uuid
 import threading
-from typing import List, Union
+from typing import List, Union, Annotated
 from langchain_core.tools import tool
 from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
 from tool_prompts import *
+from langgraph.prebuilt import InjectedState
+from logger_util import get_logger
 
 load_dotenv()
 kie_api_key = os.getenv("KIE_API_KEY")
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 supabase_url = os.getenv("VITE_SUPABASE_URL") or "https://rgmbmxczzgjtinoncdor.supabase.co"
 supabase_key = os.getenv("VITE_SUPABASE_ANON_KEY")
+logger = get_logger("mynamechat.kie_tools")
 
 # 初始化 Supabase
 supabase: Client = create_client(supabase_url, supabase_key) if supabase_key else None
@@ -77,7 +80,11 @@ def text_to_image_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
-    return result["data"]["taskId"]
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Task created successfully!",
+        "model": "seedream-v4-text"
+    }
 
 
 @tool(description=IMAGE_EDIT_DESC)
@@ -103,7 +110,11 @@ def image_edit_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
     
-    return result["data"]["taskId"]
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Task created successfully!",
+        "model": "seedream-v4-edit-image"
+    }
 
 
 @tool(description=IMAGE_EDIT_BANANA_PRO_DESC)
@@ -126,7 +137,7 @@ def image_edit_by_ppio_banana_pro_create_task(
             }
             supabase.table("ppio_task_status").insert(db_data).execute()
         except Exception as db_e:
-            print(f"Error initializing task in Supabase: {db_e}")
+            logger.warning("Error initializing task in Supabase: %s", db_e)
     
     # 3. 定义后台任务函数
     def run_background_task(tid, p_prompt, p_urls, p_resolution, p_aspect_ratio):
@@ -172,12 +183,12 @@ def image_edit_by_ppio_banana_pro_create_task(
                     
                     if "url" in transfer_result:
                         image_url = transfer_result["url"]
-                        print(f"✅ Image transferred successfully: {image_url}")
+                        logger.info("Image transferred successfully: %s", image_url)
                     else:
-                        print(f"⚠️ Transfer failed, using original URL. Response: {transfer_result}")
+                        logger.warning("Transfer failed, using original URL. Response: %s", transfer_result)
                         
                 except Exception as transfer_e:
-                    print(f"⚠️ Transfer error: {transfer_e}")
+                    logger.warning("Transfer error: %s", transfer_e)
                     # 如果转存失败，继续使用原始 URL
                 
             # 更新 Supabase (更新 URL)
@@ -186,10 +197,10 @@ def image_edit_by_ppio_banana_pro_create_task(
                     # 根据 ID 更新 URL
                     supabase.table("ppio_task_status").update({"url": image_url}).eq("id", tid).execute()
                 except Exception as db_e:
-                    print(f"Error updating Supabase: {db_e}")
+                    logger.warning("Error updating Supabase: %s", db_e)
                     
         except Exception as e:
-            print(f"Background task error: {e}")
+            logger.error("Background task error: %s", e)
 
     # 4. 启动后台线程
     thread = threading.Thread(
@@ -199,7 +210,11 @@ def image_edit_by_ppio_banana_pro_create_task(
     thread.start()
     
     # 5. 立即返回 ID
-    return task_id
+    return {
+        "task_id": task_id,
+        "status": "Task created successfully!",
+        "model": "ppio-banana-pro"
+    }
 
 
 @tool(description=TEXT_TO_VIDEO_DESC)
@@ -223,7 +238,11 @@ def text_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
-    return result["data"]["taskId"]
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Task created successfully!",
+        "model": "sora2-text-to-video"
+    }
 
 
 @tool(description=FIRST_FRAME_TO_VIDEO_DESC)
@@ -249,7 +268,11 @@ def  first_frame_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
-    return result["data"]["taskId"]
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Task created successfully!",
+        "model": "sora2-image-to-video"
+    }
 
 
 @tool(description=REMOVE_WATERMARK_DESC)
@@ -271,11 +294,15 @@ def remove_watermark_from_image_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
     
-    return result["data"]["taskId"]
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Task created successfully!",
+        "model": "seedream-v4-edit-image"
+    }
 
+# --- 内部 Helper Functions (非 Tool) ---
 
-@tool(description=GET_KIE_TASK_STATUS_DESC)
-def get_kie_task_status(task_id: str) -> Union[str, dict]:
+def _get_kie_task_status_impl(task_id: str) -> Union[str, dict]:
     try:
         params = {"taskId": task_id}
         response = requests.get(RECORD_INFO_URL, headers=_get_headers(content_type=None), params=params)
@@ -286,7 +313,7 @@ def get_kie_task_status(task_id: str) -> Union[str, dict]:
         result = response.json()
 
         if not result or "data" not in result or not result["data"]:
-            return "Task ID not found in KIE system. Please check if this is a PPIO task ID and use 'get_ppio_task_status' instead."
+            return "Task ID not found in KIE system."
 
         data = result["data"]
         state = data.get("state")
@@ -312,8 +339,7 @@ def get_kie_task_status(task_id: str) -> Union[str, dict]:
         return f"Error checking KIE task status: {str(e)}"
 
 
-@tool(description=GET_PPIO_TASK_STATUS_DESC)
-def get_ppio_task_status(task_id: str) -> str:
+def _get_ppio_task_status_impl(task_id: str) -> str:
     if not supabase:
         return "Database connection failed."
         
@@ -321,7 +347,7 @@ def get_ppio_task_status(task_id: str) -> str:
         response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
         
         if not response.data:
-            return "Task ID not found. Tell the user to generate a new task."
+            return "Task ID not found in PPIO database."
             
         record = response.data[0]
         url = record.get("url")
@@ -333,3 +359,19 @@ def get_ppio_task_status(task_id: str) -> str:
             
     except Exception as e:
         return f"Error checking task status: {str(e)}. Tell the user to try again later."
+
+
+@tool(description=GET_TASK_STATUS_DESC)
+def get_task_status(task_id: str, state: Annotated[dict, InjectedState]) -> Union[str, dict]:
+    """
+    Unified task status checker.
+    Dispatches to the correct API (KIE or PPIO) based on the tool used to create the task.
+    """
+    last_tool = state.get("last_tool_name", "").lower()
+    
+    # 简单的分发逻辑
+    if "ppio" in last_tool or "banana" in last_tool:
+        return _get_ppio_task_status_impl(task_id)
+    else:
+        # Default to KIE or check if it's a KIE tool
+        return _get_kie_task_status_impl(task_id)
