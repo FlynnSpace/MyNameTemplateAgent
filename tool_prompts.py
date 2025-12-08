@@ -15,18 +15,19 @@ Arguments:
 IMAGE_EDIT_DESC = """
 Use the seedream-v4-edit model (API provided by KIE) to create an image editing task. If users want to generate images based on reference pictures, must invoke this tool. Returns the Task ID only.
 Arguments:
-- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “保持其余元素不变。”
+- prompt (str): Describe ONLY the latest user's query. DO NOT include any other CONTEXT. Always append a clause such as “保持其余元素不变。”
 - image_urls (list[str]): URLs of the reference images.
 - seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
 - aspect_ratio (str): Image aspect ratio. (e.g., "landscape_16_9").
 """
 
+# Banana Pro 图像编辑工具描述
 IMAGE_EDIT_BANANA_PRO_DESC = """
 Use the Nano Banana Pro model (API provided by PPIO) to create an image editing task.
 CRITICAL: This tool REQUIRES a reference image.
 Arguments:
-- prompt (str): Describe ONLY the latest requested change. Always append a clause such as “保持其余元素不变。”
+- prompt (str): Describe ONLY the latest user's query. DO NOT include any other CONTEXT. Always append a clause such as “保持其余元素不变。”
 - image_urls (list[str]): The source image URLs. MUST retrieve from the `[REFERENCES]` section in context if available.
 - seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. MUST be one of: ["1K", "2K", "4K"].
@@ -104,6 +105,7 @@ SYSTEM_PROMPT_SUFFIX = """
    - **REFERENCE HANDLING**: 
      - **TRUST THE PROMPT**: If the user's message contains a URL (even if injected by system), USE IT.
      - **Exception**: Only ask for clarification if you absolutely CANNOT find a reference image for an editing task.
+     - **RETRY POLICY**: When retrying/regenerating, you MUST change the 'seed' parameter to a new random integer.
 
 3. **Post-Tool Execution Protocol (Hiding Tech Details)**:
    - When a tool returns a `task_id`, treat it as a SUCCESS signal.

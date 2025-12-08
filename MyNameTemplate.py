@@ -97,6 +97,16 @@ structured_llm = llm.with_structured_output(
     reasoning_effort="medium"  # Can be "low", "medium", or "high"
     )
 
+# [NEW] 定义一个不带工具的 LLM，用于强制 Agent 在工具执行后只进行总结，防止死循环
+structured_llm_no_tools = llm.with_structured_output(
+    schema=AgentResponse,
+    method="json_schema",
+    strict=True,
+    # tools=tools, # 移除工具，强制纯文本回复
+    include_raw=True,
+    reasoning_effort="medium"
+    )
+
 
 def initial_prep_node(input_dict: dict) -> AgentState:
     """
@@ -219,7 +229,14 @@ def model_call(state:AgentState) -> AgentState:
     # 如果当前没有引用，且有上一轮任务，且上一轮是图像编辑任务，尝试自动加载
     # 防御：确保 last_tool 不为 None 且确实是工具调用
     # 优化：只在首轮思考 (current_count为基数代表agent已经执行过tool) 时加载，避免在工具执行后的总结阶段重复加载
-    if current_count%2 == 1 and not current_refs and last_tid and last_tool:
+    
+    # [FIX] 增加判定：如果用户 Prompt 中已经包含 url 链接，则认为用户提供了素材，不进行自动 Hack
+    last_human_msg = state["messages"][-1] if state["messages"] and isinstance(state["messages"][-1], HumanMessage) else None
+    user_provided_url_in_text = False
+    if last_human_msg and ("http://" in last_human_msg.content or "https://" in last_human_msg.content):
+        user_provided_url_in_text = True
+    
+    if current_count%2 == 1 and not current_refs and not user_provided_url_in_text and last_tid and last_tool:
         if "image_edit" in last_tool.lower():
             fetched_url = None
             log_system_message(f"[系统] 尝试自动加载上一轮任务结果 (ID: {last_tid})...", echo=False)
@@ -286,7 +303,13 @@ def model_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=Your_Name_SYSTEM_PROMPT.format(tools_description=str(tools)) + context_str)
     
     # 3. 调用模型
-    response = structured_llm.invoke([system_prompt] + state["messages"])
+    # [FIX] 强制单步执行逻辑：如果是第二轮（工具执行回来后），不再提供工具，强制只生成回复
+    if current_count > 1:
+        log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
+        response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
+    else:
+        response = structured_llm.invoke([system_prompt] + state["messages"])
+
     raw_response = response["raw"]
     
     # 只返回 messages，不返回 references
