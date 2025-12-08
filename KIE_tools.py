@@ -339,26 +339,52 @@ def _get_kie_task_status_impl(task_id: str) -> Union[str, dict]:
         return f"Error checking KIE task status: {str(e)}"
 
 
-def _get_ppio_task_status_impl(task_id: str) -> str:
+def _get_ppio_task_status_impl(task_id: str, max_retries: int = 60, delay: float = 2.0) -> str:
+    """
+    查询 PPIO 任务状态的内部实现。
+    
+    Args:
+        task_id: 任务 ID
+        max_retries: 最大重试次数 (默认 10 次)
+        delay: 每次重试间隔秒数 (默认 2.0 秒)
+        
+    总等待时间 ≈ max_retries * delay (默认 20秒)
+    """
     if not supabase:
         return "Database connection failed."
         
-    try:
-        response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
-        
-        if not response.data:
-            return "Task ID not found in PPIO database."
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            # 查询 Supabase
+            response = supabase.table("ppio_task_status").select("url").eq("id", task_id).execute()
             
-        record = response.data[0]
-        url = record.get("url")
-        
-        if url:
-            return url
-        else:
-            return "Task is processing. Tell the user to try again later."
+            if not response.data:
+                # 如果刚创建还没入库（极少见），或者 ID 错误
+                if attempt < 3: # 前几次允许容错
+                    time.sleep(1)
+                    continue
+                return "Task ID not found in PPIO database."
+                
+            record = response.data[0]
+            url = record.get("url")
             
-    except Exception as e:
-        return f"Error checking task status: {str(e)}. Tell the user to try again later."
+            # 1. 成功获取到 URL
+            if url and isinstance(url, str) and url.strip():
+                return url
+            
+            # 2. URL 为空，说明还在生成中，等待后重试
+            # 使用简单的线性等待，避免阻塞太久，但给予足够的时间窗口
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                
+        except Exception as e:
+            logger.warning(f"Error querying Supabase (attempt {attempt+1}/{max_retries}): {e}")
+            # 网络错误也进行简短避让后重试
+            time.sleep(1)
+            
+    return "Task is processing."
 
 
 @tool(description=GET_TASK_STATUS_DESC)
