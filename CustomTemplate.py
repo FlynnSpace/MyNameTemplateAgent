@@ -15,14 +15,14 @@ from langgraph.prebuilt import ToolNode
 from KIE_tools import *
 # Explicitly import helper functions since 'from KIE_tools import *' skips underscores
 from KIE_tools import _get_ppio_task_status_impl, _get_kie_task_status_impl 
-from tool_prompts import Your_Name_SYSTEM_PROMPT
+from tool_prompts import Custom_SYSTEM_PROMPT
 from pydantic import BaseModel, Field
 from logger_util import get_logger
 
 
 
 load_dotenv()
-logger = get_logger("mynamechat.agent")
+logger = get_logger("customchat.agent")
 
 
 def log_system_message(message: str, echo: bool = False) -> None:
@@ -281,9 +281,10 @@ def model_call(state:AgentState) -> AgentState:
     #     context_str += f"\n[MEMORY] Last Task ID: {state['last_task_id']}"
     # if state.get("last_task_config"):
     #     context_str += f"\n[MEMORY] Last Task Config: {state['last_task_config']}"
-        
+    
+    # --- HERE IS THE CHANGE: Use Custom_SYSTEM_PROMPT ---
     # 2. 组合 Prompt
-    system_prompt = SystemMessage(content=Your_Name_SYSTEM_PROMPT.format(tools_description=str(tools)) + context_str)
+    system_prompt = SystemMessage(content=Custom_SYSTEM_PROMPT.format(tools_description=str(tools)) + context_str)
     
     # 3. 调用模型
     response = structured_llm.invoke([system_prompt] + state["messages"])
@@ -354,12 +355,12 @@ async def chat_async():
     
     # 欢迎界面
     print("\n" + "=" * 60)
-    print("🎬  AI 视频/图像生成助手 - 《你的名字》续集模板")
+    print("🎬  AI 视频/图像生成助手")
     print("=" * 60)
     
     # AI 的开场白
     greeting = ("你好！我是你的 AI 创作助手。\n"
-                "我可以帮你基于《你的名字》创作续集内容：\n"
+                "我可以帮你基于任何素材创作续集内容：\n"
                 "📷 根据角色参考图生成新图像\n"
                 "🎬 通过文本或首帧生成视频\n"
                 "输入 '退出' 或 'exit' 结束对话。")
@@ -448,3 +449,4 @@ def chat():
 
 if __name__ == "__main__":
     chat()
+

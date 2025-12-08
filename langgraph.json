@@ -1,7 +1,8 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "my_name_chat_agent": "./MyNameTemplate.py:app"
+    "my_name_chat_agent": "./MyNameTemplate.py:app",
+    "custom_chat_agent": "./CustomTemplate.py:app"
   },
   "env": ".env",
   "python_version": "3.11",

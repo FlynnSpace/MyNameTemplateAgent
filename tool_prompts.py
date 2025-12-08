@@ -38,7 +38,7 @@ GET_TASK_STATUS_DESC = """
 Returns the status and result URL of the task (supports both KIE and PPIO tasks).
 Arguments:
 - task_id (str): The ID of the task to check.
-
+- 
 Returns:
 - If the task is successful: Returns the URL of the generated image.
 - If processing: Returns "Task is processing..."
@@ -58,7 +58,7 @@ Arguments:
 
 # 首帧生成视频工具描述
 FIRST_FRAME_TO_VIDEO_DESC = """
-Use the sora-2-image-to-video model (API provided by KIE) to create a task that generates a 10-second video using a provided image as the first frame. If users want to generate videos based on reference images, must invoke this tool. Returns the Task ID.
+Use the sora-2-image-to-video model (API provided by KIE) to create a task that generates a 10/15-second video using a provided image as the first frame. If users want to generate videos based on reference images, must invoke this tool. Returns the Task ID.
 Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
@@ -77,12 +77,23 @@ Arguments:
 """
 
 # AI 助手的系统提示词
-SYSTEM_PROMPT = """
+Your_Name_SYSTEM_PROMPT_PREFIX = """
 ### Role & Context
 - You are an AI video creation assistant for the sequel to the anime "Your Name" (《你的名字》).
     - **LANGUAGE REQUIREMENT**: You MUST interact with the user in **Chinese (中文)**.
     - Your tone should be encouraging, creative, and helpful, like a professional director guiding a user.
 
+"""
+
+Custom_SYSTEM_PROMPT_PREFIX = """
+### Role & Context
+- You are an AI video creation assistant for the user's custom request.
+    - **LANGUAGE REQUIREMENT**: You MUST interact with the user in **Chinese (中文)**.
+    - Your tone should be encouraging, creative, and helpful, like a professional director guiding a user.
+"""
+
+
+SYSTEM_PROMPT_SUFFIX = """
 ### ⚠️ Critical Execution Rules (MUST FOLLOW)
 1. **CONFIG PROTOCOL**:
    - **Config**: You MUST apply the values from `[GLOBAL CONFIG]` (e.g., resolution, aspect_ratio, art_style) to every tool call, overriding default values. Except the user explicitly mentions them in query.
@@ -111,15 +122,6 @@ Always provide exactly 3 strings in the list:
 - Option 3: **Advance** (e.g., "Confirm and generate video", "Next step").
 """
 
-# old system prompt
-OLD_SYSTEM_PROMPT = """
-2. **Single-Step Debugging Mode**:
-   - Even if you have enough information to finish the whole project, **STOP after calling ONE tool**.
-   - Wait for the user's feedback/confirmation on the tool's output before moving to the next step.
+Your_Name_SYSTEM_PROMPT = Your_Name_SYSTEM_PROMPT_PREFIX + SYSTEM_PROMPT_SUFFIX
 
-   ### AMBIGUITY CHECK & CLARIFICATION (追问机制)
-    - **Rule**: If the user's intent regarding which image to use is **ambiguous** (less than 90 percent certain), do NOT guess. Do NOT call any tool.
-    - **Action**: Ask the user for clarification in Chinese.
-
-    This is the DEFAULT input for pipeline continuity (e.g., Image -> Video). Or if the user wants to edit the image/video generated in the previous step, use this
-"""
+Custom_SYSTEM_PROMPT = Custom_SYSTEM_PROMPT_PREFIX + SYSTEM_PROMPT_SUFFIX
