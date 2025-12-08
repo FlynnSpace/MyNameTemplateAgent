@@ -69,11 +69,38 @@ class AgentState(TypedDict):
     global_config: dict | None  # 记录全局配置，用于储存模板的配置，用于agent的背景知识填入API调用参数
     references: list[dict] | None  # 记录参考素材，有URL时负责记录，无URL时负责指代参考素材
     model_call_count: int  # 记录单轮交互中 model_call 的执行次数
+    suggestions: list[str] | None # [NEW] 专门用于存储 Suggestion 的字段
 
 
-class AgentResponse(BaseModel):
-    answer: str = Field(description="The answer to the user's question")
+class SuggestionResponse(BaseModel):
     suggestions: list[str] = Field(description="The suggestions for the user to choose from")
+
+structured_llm_suggestions = llm.with_structured_output(
+    schema=SuggestionResponse,
+    method="json_schema",
+    strict=True,
+    include_raw=True,
+    reasoning_effort="low"
+    )
+
+
+def suggestion_node(state: AgentState) -> AgentState:
+    """独立的 Suggestion 生成节点"""
+    messages = state["messages"]
+    
+    # 构建专门用于生成 Suggestion 的 Prompt
+    suggestion_prompt = SystemMessage(content="""
+    You are a creative assistant. Based on the conversation history, provide exactly 3 short suggestions for the user's next step.
+    Format:
+    - Option 1 & 2: Refinement (e.g., "Fix face details", "Change lighting").
+    - Option 3: Advance (e.g., "Confirm and generate video", "Next step").
+    """)
+    
+    response = structured_llm_suggestions.invoke([suggestion_prompt] + messages)
+    parsed_response = response["parsed"]
+    
+    return {"suggestions": parsed_response.suggestions}
+
 
 
 tools = [
@@ -88,24 +115,8 @@ tools = [
 llm = ChatOpenAI(model = "gpt-5-nano",
                  temperature=0.0)
 
-structured_llm = llm.with_structured_output(
-    schema=AgentResponse,
-    method="json_schema",
-    strict=True,
-    tools=tools,
-    include_raw=True,
-    reasoning_effort="medium"  # Can be "low", "medium", or "high"
-    )
-
-# [NEW] 定义一个不带工具的 LLM，用于强制 Agent 在工具执行后只进行总结，防止死循环
-structured_llm_no_tools = llm.with_structured_output(
-    schema=AgentResponse,
-    method="json_schema",
-    strict=True,
-    # tools=tools, # 移除工具，强制纯文本回复
-    include_raw=True,
-    reasoning_effort="medium"
-    )
+# [MODIFIED] 主 LLM 不再绑定 AgentResponse 结构，而是直接绑定 tools，允许流式输出
+llm_with_tools = llm.bind_tools(tools)
 
 
 def initial_prep_node(input_dict: dict) -> AgentState:
@@ -303,20 +314,18 @@ def model_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=Your_Name_SYSTEM_PROMPT.format(tools_description=str(tools)) + context_str)
     
     # 3. 调用模型
-    # [FIX] 强制单步执行逻辑：如果是第二轮（工具执行回来后），不再提供工具，强制只生成回复
+    # [FIX] 使用 bind_tools 后的模型进行调用，支持流式
     if current_count > 1:
-        log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
-        response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
+         # 强制不使用工具，直接对话 (使用原始 llm)
+        response = llm.invoke([system_prompt] + state["messages"])
     else:
-        response = structured_llm.invoke([system_prompt] + state["messages"])
-
-    raw_response = response["raw"]
+        response = llm_with_tools.invoke([system_prompt] + state["messages"])
     
     # 只返回 messages，不返回 references
     # references 会在本轮使用后，由 recorder_node 强制清空，避免持久化到下一轮
     _snapshot("exit")
     return {
-        "messages": [raw_response], 
+        "messages": [response], 
         "model_call_count": current_count,
 #        "references": [],
 #        "last_task_id": None,
@@ -343,6 +352,7 @@ graph.add_node("initial_prep", initial_prep_node)
 tool_node = ToolNode(tools=tools)
 graph.add_node("tools", tool_node)
 graph.add_node("recorder", recorder_node)
+graph.add_node("suggestion_generator", suggestion_node) # [NEW] 添加 Suggestion 节点
 
 graph.set_entry_point("initial_prep")
 graph.add_edge("initial_prep", "our_agent")
@@ -352,12 +362,13 @@ graph.add_conditional_edges(
     should_continue,
     {
         "continue": "tools",
-        "end": END,
+        "end": "suggestion_generator", # [MODIFIED] 结束时先去生成 suggestion
     },
 )
 
 graph.add_edge("tools", "recorder")
 graph.add_edge("recorder", "our_agent")
+graph.add_edge("suggestion_generator", END) # [NEW] Suggestion 生成完后结束
 
 
 app = graph.compile()
