@@ -69,11 +69,15 @@ class AgentState(TypedDict):
     global_config: dict | None  # 记录全局配置，用于储存模板的配置，用于agent的背景知识填入API调用参数
     references: list[dict] | None  # 记录参考素材，有URL时负责记录，无URL时负责指代参考素材
     model_call_count: int  # 记录单轮交互中 model_call 的执行次数
+    suggestions: list[str] | None # 记录生成的建议
 
+# [MODIFIED] Split schemas
+# MainResponse 已不再需要，因为我们转为纯文本输出
+# class MainResponse(BaseModel):
+#     answer: str = Field(description="The answer to the user's question")
 
-class AgentResponse(BaseModel):
-    answer: str = Field(description="The answer to the user's question")
-    suggestions: list[str] = Field(description="The suggestions for the user to choose from")
+class SuggestionResponse(BaseModel):
+    suggestions: list[str] = Field(description="3 follow-up suggestions for the user")
 
 
 tools = [
@@ -88,24 +92,22 @@ tools = [
 llm = ChatOpenAI(model = "gpt-5-nano",
                  temperature=0.0)
 
-structured_llm = llm.with_structured_output(
-    schema=AgentResponse,
-    method="json_schema",
-    strict=True,
-    tools=tools,
-    include_raw=True,
-    reasoning_effort="medium"  # Can be "low", "medium", or "high"
-    )
+# [MODIFIED] LLM for main conversation (Answer + Tools)
+# 使用 bind_tools 而不是 with_structured_output，实现纯文本流式输出 + 工具调用能力
+structured_llm = llm.bind_tools(tools)
 
-# [NEW] 定义一个不带工具的 LLM，用于强制 Agent 在工具执行后只进行总结，防止死循环
-structured_llm_no_tools = llm.with_structured_output(
-    schema=AgentResponse,
+# [MODIFIED] LLM for main conversation (No Tools, just Answer)
+# 纯文本模式，没有任何工具绑定
+structured_llm_no_tools = llm
+
+# [NEW] LLM for suggestion generation
+suggestion_llm = llm.with_structured_output(
+    schema=SuggestionResponse,
     method="json_schema",
     strict=True,
-    # tools=tools, # 移除工具，强制纯文本回复
     include_raw=True,
-    reasoning_effort="medium"
-    )
+    reasoning_effort="low" # Suggestions don't need high reasoning
+)
 
 
 def initial_prep_node(input_dict: dict) -> AgentState:
@@ -118,6 +120,7 @@ def initial_prep_node(input_dict: dict) -> AgentState:
     partial_state = {
         "references": [],
         "model_call_count": 0, # 每次新用户输入，重置计数器
+        "suggestions": [], # 重置建议
         # "last_task_id": None,  <-- 移除这些重置操作
         # "last_tool_name": None,
         # "last_task_config": None,
@@ -310,7 +313,8 @@ def model_call(state:AgentState) -> AgentState:
     else:
         response = structured_llm.invoke([system_prompt] + state["messages"])
 
-    raw_response = response["raw"]
+    # raw_response = response["raw"] # [REMOVED] 不再是 structured output
+    raw_response = response # bind_tools 或 invoke 直接返回 AIMessage
     
     # 只返回 messages，不返回 references
     # references 会在本轮使用后，由 recorder_node 强制清空，避免持久化到下一轮
@@ -318,12 +322,28 @@ def model_call(state:AgentState) -> AgentState:
     return {
         "messages": [raw_response], 
         "model_call_count": current_count,
-#        "references": [],
-#        "last_task_id": None,
-#        "last_tool_name": None,
-#        "last_task_config": None,
-#        "global_config": None,
         }
+
+
+# [NEW] Suggestion Generator Node
+def suggestion_node(state: AgentState) -> AgentState:
+    """建议生成节点：基于当前对话历史生成后续建议"""
+    log_system_message("--- [DEBUG] Generating Suggestions ---", echo=False)
+    
+    # 构建专门的 Prompt 用于生成建议
+    # 获取最近的对话作为上下文
+    messages = state["messages"][-5:] # 取最近5条即可
+    
+    prompt = SystemMessage(content=SUGGESTION_SYSTEM_PROMPT)
+    
+    try:
+        response = suggestion_llm.invoke([prompt] + messages)
+        suggestions = response["parsed"].suggestions
+        log_system_message(f"--- [DEBUG] Suggestions Generated: {suggestions}", echo=False)
+        return {"suggestions": suggestions}
+    except Exception as e:
+        logger.error(f"Failed to generate suggestions: {e}")
+        return {"suggestions": []}
 
 
 def should_continue(state: AgentState): 
@@ -344,6 +364,9 @@ tool_node = ToolNode(tools=tools)
 graph.add_node("tools", tool_node)
 graph.add_node("recorder", recorder_node)
 
+# [NEW] Add suggestion node
+graph.add_node("suggestion_generator", suggestion_node)
+
 graph.set_entry_point("initial_prep")
 graph.add_edge("initial_prep", "our_agent")
 
@@ -352,12 +375,15 @@ graph.add_conditional_edges(
     should_continue,
     {
         "continue": "tools",
-        "end": END,
+        "end": "suggestion_generator", # [MODIFIED] Route to suggestion generator instead of END
     },
 )
 
 graph.add_edge("tools", "recorder")
 graph.add_edge("recorder", "our_agent")
+
+# [NEW] Connect suggestion generator to END
+graph.add_edge("suggestion_generator", END)
 
 
 app = graph.compile()
@@ -430,13 +456,17 @@ async def chat_async():
             
             # 捕获 LLM 的流式 token
             if kind == "on_chat_model_stream":
-                content = event["data"]["chunk"].content
-                if content:
-                    if not shown_ai_prefix:
-                        print("AI: ", end="", flush=True)
-                        shown_ai_prefix = True
-                    print(content, end="", flush=True)
-                    in_agent_response = True
+                # [MODIFIED] Filter logic might need adjustment depending on how structured output streams
+                # LangChain's with_structured_output usually doesn't stream token-by-token easily for the JSON content
+                # But here we are looking for the 'raw' message content if included
+                if "chunk" in event["data"]:
+                    content = event["data"]["chunk"].content
+                    if content:
+                        if not shown_ai_prefix:
+                            print("AI: ", end="", flush=True)
+                            shown_ai_prefix = True
+                        print(content, end="", flush=True)
+                        in_agent_response = True
             
             # 捕获工具调用信息
             elif kind == "on_tool_start":
@@ -455,6 +485,12 @@ async def chat_async():
             elif kind == "on_chain_end" and event.get("name") == "LangGraph":
                 # 获取最终输出状态
                 state = event["data"]["output"]
+                # [NEW] Print suggestions if available
+                if state.get("suggestions"):
+                    print("\n\n💡 建议:")
+                    for idx, sug in enumerate(state["suggestions"]):
+                        print(f"{idx+1}. {sug}")
+
         
         print("\n")  # 空行分隔
 
