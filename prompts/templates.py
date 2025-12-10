@@ -1,6 +1,8 @@
 """
-KIE 工具描述和操作指南配置文件
+集中存放所有 System Prompt (正文、建议等)
 """
+
+# KIE 工具描述和操作指南配置文件
 
 # 文本生成图像工具描述
 TEXT_TO_IMAGE_DESC = """
@@ -127,3 +129,4 @@ SYSTEM_PROMPT_SUFFIX = """
 Your_Name_SYSTEM_PROMPT = Your_Name_SYSTEM_PROMPT_PREFIX + SYSTEM_PROMPT_SUFFIX
 
 Custom_SYSTEM_PROMPT = Custom_SYSTEM_PROMPT_PREFIX + SYSTEM_PROMPT_SUFFIX
+

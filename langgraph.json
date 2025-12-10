@@ -1,13 +1,12 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "my_name_chat_agent": "./MyNameTemplate.py:app",
-    "custom_chat_agent": "./CustomTemplate.py:app",
-    "my_name_suggestion_chat_agent": "./MyNameTemplate_suggestion.py:app"
+    "my_name_chat_agent": "./apps/MyNameTemplate.py:app",
+    "custom_chat_agent": "./apps/CustomTemplate.py:app",
+    "my_name_suggestion_chat_agent": "./apps/MyNameTemplate_suggestion.py:app"
   },
   "env": ".env",
   "python_version": "3.11",
   "host": "0.0.0.0",
   "port": 2024
 }
-
