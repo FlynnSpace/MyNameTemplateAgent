@@ -85,8 +85,10 @@ tools = [
     remove_watermark_from_image_by_kie_seedream_v4_create_task
     ]  # max function name length is 64
 
-llm = ChatOpenAI(model = "gpt-5-nano",
-                 temperature=0.0)
+llm = ChatOpenAI(model = "doubao-seed-1-6-vision-250815",
+                 temperature=0.0,
+                 api_key=os.getenv("DOUBAO_API_KEY"),
+                 base_url=os.getenv("DOUBAO_BASE_URL"))
 
 structured_llm = llm.with_structured_output(
     schema=AgentResponse,
