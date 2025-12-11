@@ -34,27 +34,27 @@ graph TD
     end
 
     subgraph "Core Graph Logic (graphs/ & nodes/)"
-        B1[builder.py <br/> (create_base_ReAct_graph)]
-        B2[nodes/core.py <br/> (LLM Call & Auto-Load)]
-        B3[nodes/common.py <br/> (Prep & Recorder)]
-        B4[nodes/routers.py <br/> (Conditional Edges)]
-        B5[nodes/suggestion.py <br/> (Suggestion Gen)]
+        B1["builder.py <br/> (create_base_ReAct_graph)"]
+        B2["nodes/core.py <br/> (LLM Call & Auto-Load)"]
+        B3["nodes/common.py <br/> (Prep & Recorder)"]
+        B4["nodes/routers.py <br/> (Conditional Edges)"]
+        B5["nodes/suggestion.py <br/> (Suggestion Gen)"]
     end
 
     subgraph "State Management (state/)"
-        C1[schemas.py <br/> (AgentState)]
+        C1["schemas.py <br/> (AgentState)"]
     end
 
     subgraph "Tools Library (tools/)"
-        D1[registry.py <br/> (Tool Aggregator)]
-        D2[image.py <br/> (PPIO/Seedream)]
-        D3[video.py <br/> (Sora-2)]
-        D4[utils.py <br/> (Helpers & Config)]
+        D1["registry.py <br/> (Tool Aggregator)"]
+        D2["image.py <br/> (PPIO/Seedream)"]
+        D3["video.py <br/> (Sora-2)"]
+        D4["utils.py <br/> (Helpers & Config)"]
     end
 
     subgraph "Prompts & Utils (prompts/ & utils/)"
-        E1[templates.py <br/> (System Prompts)]
-        E2[logger.py <br/> (Context-Aware Logger)]
+        E1["templates.py <br/> (System Prompts)"]
+        E2["logger.py <br/> (Context-Aware Logger)"]
     end
 
     %% Relationships
