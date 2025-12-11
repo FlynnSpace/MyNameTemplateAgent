@@ -80,6 +80,10 @@ def text_to_image_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in text_to_image_by_kie_seedream_v4_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
         "status": "Task created successfully!",
@@ -110,6 +114,10 @@ def image_edit_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
     
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in image_edit: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
         "status": "Task created successfully!",
@@ -238,6 +246,10 @@ def text_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in text_to_video: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
         "status": "Task created successfully!",
@@ -268,6 +280,10 @@ def  first_frame_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in first_frame_to_video: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
         "status": "Task created successfully!",
@@ -294,6 +310,10 @@ def remove_watermark_from_image_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
     
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in remove_watermark: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
         "status": "Task created successfully!",

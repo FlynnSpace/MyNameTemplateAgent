@@ -85,8 +85,10 @@ tools = [
     remove_watermark_from_image_by_kie_seedream_v4_create_task
     ]  # max function name length is 64
 
-llm = ChatOpenAI(model = "gpt-5-nano",
-                 temperature=0.0)
+llm = ChatOpenAI(model="doubao-seed-1-6-vision-250815",
+                temperature=0.0,
+                api_key=os.getenv("DOUBAO_API_KEY"),
+                base_url=os.getenv("DOUBAO_BASE_URL"))
 
 structured_llm = llm.with_structured_output(
     schema=AgentResponse,
@@ -304,11 +306,11 @@ def model_call(state:AgentState) -> AgentState:
     
     # 3. 调用模型
     # [FIX] 强制单步执行逻辑：如果是第二轮（工具执行回来后），不再提供工具，强制只生成回复
-    if current_count > 1:
-        log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
-        response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
-    else:
-        response = structured_llm.invoke([system_prompt] + state["messages"])
+    # if current_count > 1:
+    #     log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
+    #     response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
+    # else:
+    response = structured_llm.invoke([system_prompt] + state["messages"])
 
     raw_response = response["raw"]
     

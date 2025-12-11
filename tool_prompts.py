@@ -53,7 +53,7 @@ Arguments:
 - prompt (str): The user's video description.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 - resolution (str): Video resolution (e.g., "720P", "1080P").
-- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"]. If the user use the default value "16:9", you should use the aspect ratio parameter "landscape". If the user use the default value "9:16", you should use the aspect ratio parameter "portrait".
 - n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
@@ -64,7 +64,7 @@ Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
-- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"]. If the user use the default value "16:9", you should use the aspect ratio parameter "landscape". If the user use the default value "9:16", you should use the aspect ratio parameter "portrait".
 - n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
