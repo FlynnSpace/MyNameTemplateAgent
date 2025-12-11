@@ -26,7 +26,7 @@ CALLBACK_URL = None
 # 图像生成默认配置
 DEFAULT_SeedDream_IMAGE_SIZE = "landscape_16_9"  # https://kie.ai/seedream-api
 DEFAULT_NanoPro_IMAGE_SIZE = "16:9"  # 16:9, 9:16, 1:1, 4:3, 3:4, 21:9
-DEFAULT_IMAGE_RESOLUTION = "1K"  # 1K, 2K, 4K
+DEFAULT_IMAGE_RESOLUTION = "2K"  # 1K, 2K, 4K
 DEFAULT_MAX_IMAGES = 1
 
 # 视频生成默认配置

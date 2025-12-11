@@ -1,6 +1,7 @@
 import json
 import requests
 from langchain_core.tools import tool
+from utils.logger import get_logger
 from prompts.templates import (
     TEXT_TO_VIDEO_DESC, 
     FIRST_FRAME_TO_VIDEO_DESC
@@ -34,9 +35,13 @@ def text_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in text_to_video_by_kie_sora2_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Text to Video Task created successfully!",
         "model": "sora2-text-to-video"
     }
 
@@ -64,9 +69,13 @@ def  first_frame_to_video_by_kie_sora2_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in first_frame_to_video_by_kie_sora2_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "First Frame to Video Task created successfully!",
         "model": "sora2-image-to-video"
     }
 

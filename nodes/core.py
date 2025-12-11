@@ -123,11 +123,11 @@ def create_model_node(llm: BaseChatModel, system_prompt_template: str, tools: Li
         
         # 3. 调用模型
         # [FIX] 强制单步执行逻辑：如果是第二轮（工具执行回来后），不再提供工具，强制只生成回复
-        if current_count > 1:
-            log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
-            response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
-        else:
-            response = structured_llm.invoke([system_prompt] + state["messages"])
+        # if current_count > 1:
+        #     log_system_message("[系统] 检测到多轮对话，强制切换为无工具模式 (Final Answer Mode)", echo=False)
+        #     response = structured_llm_no_tools.invoke([system_prompt] + state["messages"])
+        # else:
+        response = structured_llm.invoke([system_prompt] + state["messages"])
 
         _snapshot("exit")
         return {

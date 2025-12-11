@@ -55,7 +55,7 @@ Arguments:
 - prompt (str): The user's video description.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
 - resolution (str): Video resolution (e.g., "720P", "1080P").
-- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"]. If the user use the default value "16:9", you should use the aspect ratio parameter "landscape". If the user use the default value "9:16", you should use the aspect ratio parameter "portrait".
 - n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
@@ -66,7 +66,7 @@ Arguments:
 - image_source (list[str]): The reference image (URL or file path) to serve as the start frame.
 - prompt (str): Description of the video.
 - seed (int): A random number. CHANGE THIS whenever the user asks to "retry" or "regenerate".
-- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"].
+- aspect_ratio (str): Video aspect ratio. Options: ["landscape", "portrait"]. If the user use the default value "16:9", you should use the aspect ratio parameter "landscape". If the user use the default value "9:16", you should use the aspect ratio parameter "portrait".
 - n_frames (str): Number of frames. Options: ["10", "15"].
 """
 
@@ -120,6 +120,7 @@ SYSTEM_PROMPT_SUFFIX = """
      - **RETRY POLICY**: When retrying/regenerating, you MUST change the 'seed' parameter to a new random integer.
 
 3. **Post-Tool Execution Protocol (Hiding Tech Details)**:
+   - **EXECUTION CRITERIA**: You MUST consider a task as executed ONLY when you receive a returned `task_id`.
    - When a tool returns a `task_id`, treat it as a SUCCESS signal.
    - **FORBIDDEN**: Do NOT output the `task_id` or any technical identifiers in your answer.
    - **REQUIRED**: Simply inform the user that the generation task has started and the result will automatically appear in the "创作中心".

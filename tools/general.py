@@ -5,43 +5,15 @@ from typing import Union, Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from prompts.templates import (
-    REMOVE_WATERMARK_DESC, 
     GET_TASK_STATUS_DESC
 )
 from tools.utils import (
     _get_headers, 
-    CREATE_TASK_URL,
     RECORD_INFO_URL,
-    CALLBACK_URL,
-    DEFAULT_MAX_IMAGES,
     supabase,
     logger
 )
 
-@tool(description=REMOVE_WATERMARK_DESC)
-def remove_watermark_from_image_by_kie_seedream_v4_create_task(
-    prompt: str, 
-    image_urls: list[str], 
-    seed: int, 
-    ) -> str:
-    payload = {
-        "model": "bytedance/seedream-v4-edit",
-        "callBackUrl": CALLBACK_URL,
-        "input": {
-            "prompt": prompt,
-            "image_urls": image_urls,
-            "max_images": DEFAULT_MAX_IMAGES
-        }
-    }
-
-    response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
-    result = response.json()
-    
-    return {
-        "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
-        "model": "seedream-v4-edit-image"
-    }
 
 
 def _get_kie_task_status_impl(task_id: str) -> Union[str, dict]:

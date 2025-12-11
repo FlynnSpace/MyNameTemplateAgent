@@ -7,7 +7,8 @@ from langchain_core.tools import tool
 from prompts.templates import (
     TEXT_TO_IMAGE_DESC, 
     IMAGE_EDIT_DESC, 
-    IMAGE_EDIT_BANANA_PRO_DESC
+    IMAGE_EDIT_BANANA_PRO_DESC,
+    REMOVE_WATERMARK_DESC
 )
 from tools.utils import (
     _get_headers, 
@@ -23,6 +24,36 @@ from tools.utils import (
     supabase,
     logger
 )
+
+@tool(description=REMOVE_WATERMARK_DESC)
+def remove_watermark_from_image_by_kie_seedream_v4_create_task(
+    prompt: str, 
+    image_urls: list[str], 
+    seed: int, 
+    ) -> str:
+    payload = {
+        "model": "bytedance/seedream-v4-edit",
+        "callBackUrl": CALLBACK_URL,
+        "input": {
+            "prompt": prompt,
+            "image_urls": image_urls,
+            "max_images": DEFAULT_MAX_IMAGES
+        }
+    }
+
+    response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
+    result = response.json()
+    
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in remove_watermark_from_image_by_kie_seedream_v4_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
+    return {
+        "task_id": result["data"]["taskId"],
+        "status": "Remove Watermark Task created successfully!",
+        "model": "seedream-v4-edit-image"
+    }
+
 
 @tool(description=TEXT_TO_IMAGE_DESC)
 def text_to_image_by_kie_seedream_v4_create_task(
@@ -44,9 +75,13 @@ def text_to_image_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
 
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in text_to_image_by_kie_seedream_v4_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Text to Image Task created successfully!",
         "model": "seedream-v4-text"
     }
 
@@ -74,9 +109,13 @@ def image_edit_by_kie_seedream_v4_create_task(
     response = requests.post(CREATE_TASK_URL, headers=_get_headers(), data=json.dumps(payload))
     result = response.json()
     
+    if not result or "data" not in result or not result["data"]:
+        logger.error(f"KIE API Error in image_edit_by_kie_seedream_v4_create_task: {result}")
+        return f"Error creating task: {result.get('msg', 'Unknown error')} (Response: {result})"
+
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Image Edit Task created successfully!",
         "model": "seedream-v4-edit-image"
     }
 
@@ -176,7 +215,7 @@ def image_edit_by_ppio_banana_pro_create_task(
     # 5. 立即返回 ID
     return {
         "task_id": task_id,
-        "status": "Task created successfully!",
+        "status": "Image Edit Task created successfully!",
         "model": "ppio-banana-pro"
     }
 
