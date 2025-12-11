@@ -1,7 +1,6 @@
 import json
 import requests
 from langchain_core.tools import tool
-from utils.logger import get_logger
 from prompts.templates import (
     TEXT_TO_VIDEO_DESC, 
     FIRST_FRAME_TO_VIDEO_DESC
@@ -11,7 +10,8 @@ from tools.utils import (
     CREATE_TASK_URL,
     CALLBACK_URL,
     DEFAULT_ASPECT_RATIO,
-    DEFAULT_N_FRAMES
+    DEFAULT_N_FRAMES,
+    logger
 )
 
 @tool(description=TEXT_TO_VIDEO_DESC)

@@ -1,14 +1,19 @@
 import logging
 import os
 import threading
+import contextvars
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Any
 
-LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 _LOGGER_CACHE: Dict[str, logging.Logger] = {}
+_LOGGER_CONTEXT = contextvars.ContextVar("logger_name", default="mynamechat")
 
+def set_logger_context(name: str):
+    """Set the logger name for the current context."""
+    _LOGGER_CONTEXT.set(name)
 
 def _build_log_path() -> str:
     """Create a log file path that follows <timestamp>_<thread_id>.log."""
@@ -50,6 +55,18 @@ def get_logger(name: str = "mynamechat") -> logging.Logger:
     _LOGGER_CACHE[name] = logger
     return logger
 
+class LoggerProxy:
+    """
+    A proxy that delegates calls to the logger defined in the current context.
+    """
+    def __getattr__(self, name: str) -> Any:
+        current_name = _LOGGER_CONTEXT.get()
+        # Ensure we're using a logger specific to the context, or default
+        real_logger = get_logger(current_name)
+        return getattr(real_logger, name)
+
+# Export a global proxy that tools can use
+logger_proxy = LoggerProxy()
 
 def write_test_log(content: str, logger: logging.Logger | None = None) -> None:
     """

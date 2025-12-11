@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from langgraph.graph.graph import CompiledGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from state.schemas import AgentState
 import nodes.common as common
@@ -10,13 +10,13 @@ import nodes.core as core
 import nodes.suggestion as suggestion
 import nodes.routers as routers
 
-def create_graph(
+def create_base_ReAct_graph(
     llm: BaseChatModel,
     system_prompt: str,
     tools: list[BaseTool],
     enable_suggestion: bool = False,
     suggestion_llm: BaseChatModel = None
-) -> CompiledGraph:
+) -> CompiledStateGraph:
     """
     通用图构建工厂。
     

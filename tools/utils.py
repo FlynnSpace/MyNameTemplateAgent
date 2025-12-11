@@ -1,11 +1,9 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from utils.logger import get_logger
+from utils.logger import logger_proxy as logger
 
 load_dotenv()
-
-logger = get_logger("mynamechat.tools")
 
 kie_api_key = os.getenv("KIE_API_KEY")
 gemini_api_key = os.getenv("GEMINI_API_KEY")

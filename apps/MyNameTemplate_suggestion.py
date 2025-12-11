@@ -5,16 +5,17 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, HumanMessage
 
-from graphs.builder import create_graph
+from graphs.builder import create_base_ReAct_graph
 from prompts.templates import Your_Name_SYSTEM_PROMPT
 from tools.registry import get_all_tools
 from nodes.common import prepare_state_from_payload
 from state.schemas import AgentState, SuggestionResponse
-from utils.logger import get_logger
+from utils.logger import get_logger, set_logger_context
 
 # 1. 初始化配置
 load_dotenv()
-logger = get_logger("mynamechat_suggestion.app")
+set_logger_context("mynamechat.MyNameTemplate_suggestion")
+logger = get_logger("mynamechat.MyNameTemplate_suggestion")
 
 # 2. 配置 LLM
 # 主对话模型
@@ -36,11 +37,11 @@ suggestion_llm = llm.with_structured_output(
 
 # 3. 构建 Graph
 # 开启 enable_suggestion=True
-app = create_graph(
+app = create_base_ReAct_graph(
     llm=llm,
     system_prompt=Your_Name_SYSTEM_PROMPT,
     tools=get_all_tools(),
-    enable_suggestion=True,
+    enable_suggestion=False,
     suggestion_llm=suggestion_llm
 )
 

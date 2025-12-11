@@ -15,7 +15,6 @@ from tools.utils import (
 )
 
 
-
 def _get_kie_task_status_impl(task_id: str) -> Union[str, dict]:
     try:
         params = {"taskId": task_id}
