@@ -86,7 +86,7 @@ def text_to_image_by_kie_seedream_v4_create_task(
 
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Text to Image Task created successfully!",
         "model": "seedream-v4-text"
     }
 
@@ -120,7 +120,7 @@ def image_edit_by_kie_seedream_v4_create_task(
 
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Image Edit Task created successfully!",
         "model": "seedream-v4-edit-image"
     }
 
@@ -220,7 +220,7 @@ def image_edit_by_ppio_banana_pro_create_task(
     # 5. 立即返回 ID
     return {
         "task_id": task_id,
-        "status": "Task created successfully!",
+        "status": "Image Edit Task created successfully!",
         "model": "ppio-banana-pro"
     }
 
@@ -252,7 +252,7 @@ def text_to_video_by_kie_sora2_create_task(
 
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Text to Video Task created successfully!",
         "model": "sora2-text-to-video"
     }
 
@@ -286,7 +286,7 @@ def  first_frame_to_video_by_kie_sora2_create_task(
 
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "First Frame to Video Task created successfully!",
         "model": "sora2-image-to-video"
     }
 
@@ -316,7 +316,7 @@ def remove_watermark_from_image_by_kie_seedream_v4_create_task(
 
     return {
         "task_id": result["data"]["taskId"],
-        "status": "Task created successfully!",
+        "status": "Remove Watermark Task created successfully!",
         "model": "seedream-v4-edit-image"
     }
 
