@@ -118,6 +118,7 @@ SYSTEM_PROMPT_SUFFIX = """
      - **RETRY POLICY**: When retrying/regenerating, you MUST change the 'seed' parameter to a new random integer.
 
 3. **Post-Tool Execution Protocol (Hiding Tech Details)**:
+   - **EXECUTION CRITERIA**: You MUST consider a task as executed ONLY when you receive a returned `task_id` in this TURN.
    - When a tool returns a `task_id`, treat it as a SUCCESS signal.
    - **FORBIDDEN**: Do NOT output the `task_id` or any technical identifiers in your answer.
    - **REQUIRED**: Simply inform the user that the generation task has started and the result will automatically appear in the "创作中心".
