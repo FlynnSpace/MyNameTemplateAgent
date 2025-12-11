@@ -28,7 +28,14 @@ def create_model_node(llm: BaseChatModel, system_prompt_template: str, tools: Li
     """
     
     # Pre-bind tools to the LLM
-    structured_llm = llm.bind_tools(tools)
+    if hasattr(llm, "bind_tools"):
+        structured_llm = llm.bind_tools(tools)
+    else:
+        # 为了兼容旧版的MyNameTemplate.py，直接使用原始的 LLM
+        structured_llm = llm
+
+    # 只在使用gpt5-nano时会出现原地反复调用工具的问题
+    # 会配合invoke计数器，强行切换为无工具模式，但是豆包貌似没有这个问题，所以暂时停用这个功能
     structured_llm_no_tools = llm # Raw model has no tools bound
 
     def model_call(state: AgentState) -> dict:
@@ -129,9 +136,16 @@ def create_model_node(llm: BaseChatModel, system_prompt_template: str, tools: Li
         # else:
         response = structured_llm.invoke([system_prompt] + state["messages"])
 
+        # 兼容性处理：如果返回的是字典（structured output），提取 raw 消息
+        # 此处也是为了兼容旧版的MyNameTemplate.py，格式化输出后必须提取raw消息，否则会报错
+        if isinstance(response, dict) and "raw" in response:
+            response_msg = response["raw"]
+        else:
+            response_msg = response
+
         _snapshot("exit")
         return {
-            "messages": [response], 
+            "messages": [response_msg], 
             "model_call_count": current_count,
             }
 

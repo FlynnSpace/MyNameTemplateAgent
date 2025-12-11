@@ -25,3 +25,10 @@ class AgentState(TypedDict):
 class SuggestionResponse(BaseModel):
     suggestions: list[str] = Field(description="3 follow-up suggestions for the user")
 
+class LegacyAgentResponse(BaseModel):
+    """
+        早期的 Agent 响应格式，包含 answer 和 suggestions
+        现在不使用这个格式，但是为了兼容旧的 MyNameTemplate.py，保留这个模型
+    """
+    answer: str = Field(description="The answer to the user's question")
+    suggestions: list[str] = Field(description="The suggestions for the user to choose from")
