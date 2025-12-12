@@ -1,6 +1,8 @@
 # 🎬 MyNameChat - AI 视频/图像连续创作助手 (重构版)
 
-基于 **LangGraph** 构建的模块化智能创作助手，专为《你的名字》(君の名は) 续集创作设计。本项目采用 **节点工厂 (Node Factory)** 与 **图构建器 (Graph Builder)** 架构，支持通过配置快速构建不同风格的 Agent。
+基于 **LangGraph** 构建的模块化智能创作助手，旨在提供**任意主题下的 AI 视频/图像创作流程辅助**。
+
+本项目以《你的名字》(君の名は) 续集创作为演示案例（Demo），实际上采用 **节点工厂 (Node Factory)** 与 **图构建器 (Graph Builder)** 架构，支持通过配置快速构建不同风格的创作 Agent。
 
 在保持**连续修图**、**自动上下文加载**以及**多模态生成**等核心能力的同时，新的架构极大地提高了代码的复用性和扩展性。
 
@@ -79,9 +81,9 @@ graph TD
 ```text
 MyNameChat/
 ├── apps/                # [入口] 应用配置层 (Thin Wrappers)
-│   ├── MyNameTemplate.py             # 《你的名字》风格 Agent
-│   ├── CustomTemplate.py             # 通用自定义风格 Agent
-│   └── MyNameTemplate_suggestion.py  # 带建议生成功能的 Agent
+│   ├── MyNameTemplate.py             # [旧版] 格式化输出 Demo (统一输出 Answer + Suggestions)
+│   ├── MyNameTemplate_suggestion.py  # [新版] 推荐架构：流式输出对话 + 独立节点生成建议 (适配前端流式)
+│   └── CustomTemplate.py             # [通用] 用户自定义创作模块 (支持任意主题配置)
 ├── graphs/              # [核心] 图编排层
 │   └── builder.py                    # 通用 Graph 构建工厂
 ├── nodes/               # [核心] 节点逻辑层
@@ -136,25 +138,11 @@ VITE_SUPABASE_ANON_KEY=your-key
 
 ### 3. 运行应用
 
-#### 方式 A: LangGraph Server (推荐)
+#### LangGraph Server (推荐)
 本项目遵循 LangGraph 标准结构，支持直接启动 API 服务：
 
 ```bash
 langgraph dev
-```
-
-#### 方式 B: 本地命令行调试
-可以直接运行 `apps/` 下的入口文件进行对话测试。注意需要使用模块化运行方式以确保路径正确：
-
-```bash
-# 运行《你的名字》Agent
-python -m apps.MyNameTemplate
-
-# 运行带建议功能的 Agent
-python -m apps.MyNameTemplate_suggestion
-
-# 运行自定义 Agent
-python -m apps.CustomTemplate
 ```
 
 ## 🔄 工作流逻辑 (Refactored)

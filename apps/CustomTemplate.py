@@ -19,8 +19,10 @@ logger = get_logger("customchat.CustomTemplate")
 
 # 2. 配置 LLM
 llm = ChatOpenAI(
-    model="gpt-5-nano",
-    temperature=0.0
+    model="doubao-seed-1-6-vision-250815",
+    temperature=0.0,
+    api_key=os.getenv("DOUBAO_API_KEY"),
+    base_url=os.getenv("DOUBAO_BASE_URL")
 )
 
 # 3. 构建 Graph
