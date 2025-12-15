@@ -6,10 +6,31 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================
-# 执行者类型定义 (用于 Supervisor 路由) - 对标 LangManus
+# 执行者与工具配置 (用于 Supervisor 路由，支持动态加载)
 # ============================================================
+
+# 默认执行者列表
 TEAM_MEMBERS = ["image_executor", "video_executor", "general_executor", "reporter"]
 OPTIONS = TEAM_MEMBERS + ["FINISH"]
+
+# 默认工具配置：每个执行者可用的工具列表
+DEFAULT_EXECUTOR_TOOLS: dict[str, list[str]] = {
+    "image_executor": [
+        "text_to_image",           # 文本生成图片
+        "image_edit",              # 图片编辑
+        "image_edit_banana_pro",   # Banana Pro 图片编辑
+        "remove_watermark",        # 去除水印
+    ],
+    "video_executor": [
+        "text_to_video",           # 文本生成视频
+        "first_frame_to_video",    # 首帧生成视频
+    ],
+    "general_executor": [
+        "get_task_status",         # 查询任务状态
+        "update_global_config",    # 更新全局配置
+    ],
+    "reporter": [],                # Reporter 不使用工具，只生成报告
+}
 
 # 保持兼容性
 EXECUTOR_TYPES = TEAM_MEMBERS
@@ -22,6 +43,12 @@ class AgentState(TypedDict):
     支持 ReAct 模式和 Planner-Supervisor 模式
     """
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    
+    # ============================================================
+    # 动态配置 (支持运行时工具加载)
+    # ============================================================
+    TEAM_MEMBERS: list[str]              # 执行者列表，支持动态配置
+    EXECUTOR_TOOLS: dict[str, list[str]] # 每个执行者的可用工具，支持最小颗粒度配置
     
     # ============================================================
     # 核心状态追踪 (ReAct 模式)

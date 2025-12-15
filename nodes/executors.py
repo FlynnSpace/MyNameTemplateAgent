@@ -6,6 +6,10 @@ Executors 节点
 - ImageExecutor: 图像生成/编辑
 - VideoExecutor: 视频生成
 - GeneralExecutor: 通用任务 (状态查询等)
+
+支持动态工具配置:
+- 从 state.EXECUTOR_TOOLS 获取每个执行者可用的工具列表
+- 前端可通过传入 EXECUTOR_TOOLS 控制工具的启用/禁用
 """
 
 import json
@@ -17,11 +21,59 @@ from langchain_core.tools import BaseTool
 from langgraph.types import Command
 from langgraph.prebuilt import ToolNode
 
-from state.schemas import AgentState
+from state.schemas import AgentState, DEFAULT_EXECUTOR_TOOLS
 from prompts.templates import get_executor_prompt
 from utils.logger import get_logger
 
 logger = get_logger("loopskill.nodes.executors")
+
+
+# ============================================================
+# 工具过滤辅助函数
+# ============================================================
+
+def _get_available_tools(
+    all_tools: List[BaseTool],
+    executor_name: str,
+    state: AgentState
+) -> List[BaseTool]:
+    """
+    根据 state 中的 EXECUTOR_TOOLS 配置过滤可用工具
+    
+    Args:
+        all_tools: 所有可用工具列表
+        executor_name: 执行者名称 (image_executor, video_executor, general_executor)
+        state: 当前状态 (包含 EXECUTOR_TOOLS 配置)
+        
+    Returns:
+        过滤后的工具列表
+        
+    工作流程:
+    1. 从 state.EXECUTOR_TOOLS 获取该执行者允许使用的工具名称列表
+    2. 如果没有配置，使用默认配置 DEFAULT_EXECUTOR_TOOLS
+    3. 根据工具名称过滤 all_tools
+    """
+    # 获取工具配置
+    executor_tools_config = state.get("EXECUTOR_TOOLS", DEFAULT_EXECUTOR_TOOLS)
+    allowed_tool_names = executor_tools_config.get(executor_name, [])
+    
+    if not allowed_tool_names:
+        logger.warning(f"{executor_name} 没有配置可用工具，将使用空工具列表")
+        return []
+    
+    # 建立工具名称映射 (支持模糊匹配)
+    filtered_tools = []
+    for tool in all_tools:
+        tool_name_lower = tool.name.lower()
+        for allowed_name in allowed_tool_names:
+            # 精确匹配或部分匹配
+            if allowed_name.lower() in tool_name_lower or tool_name_lower in allowed_name.lower():
+                filtered_tools.append(tool)
+                break
+    
+    logger.info(f"{executor_name} 可用工具: {[t.name for t in filtered_tools]} (配置: {allowed_tool_names})")
+    
+    return filtered_tools
 
 
 # ============================================================
@@ -33,30 +85,37 @@ def create_image_executor_node(
     tools: List[BaseTool]
 ):
     """
-    创建 ImageExecutor 节点
+    创建 ImageExecutor 节点 (支持动态工具配置)
     
     Args:
         llm: 语言模型
-        tools: 图像相关工具列表
+        tools: 所有可用工具列表 (会根据 state.EXECUTOR_TOOLS 过滤)
         
     Returns:
         image_executor 节点函数
+        
+    动态工具配置:
+    - 在运行时从 state.EXECUTOR_TOOLS["image_executor"] 获取允许使用的工具名称
+    - 根据名称从 tools 中过滤出实际可用的工具
+    - 前端可通过修改 EXECUTOR_TOOLS 来启用/禁用特定工具
     """
-    # 过滤出图像相关工具
-    image_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["image", "seedream", "banana", "watermark"])]
-    
-    if not image_tools:
-        logger.warning("没有找到图像相关工具，使用所有工具")
-        image_tools = tools
-    
-    # 绑定工具到 LLM
-    llm_with_tools = llm.bind_tools(image_tools)
     
     def image_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
         """
         图像执行者节点：执行图像生成/编辑任务
         """
         logger.info("ImageExecutor 开始执行")
+        
+        # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
+        image_tools = _get_available_tools(tools, "image_executor", state)
+        
+        if not image_tools:
+            logger.warning("ImageExecutor 没有可用工具，使用备用方案")
+            # 备用：根据关键词过滤
+            image_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["image", "seedream", "banana", "watermark"])]
+        
+        # 动态绑定工具到 LLM
+        llm_with_tools = llm.bind_tools(image_tools) if image_tools else llm
         
         # 获取当前步骤信息
         current_step = _get_current_step(state)
@@ -126,30 +185,31 @@ def create_video_executor_node(
     tools: List[BaseTool]
 ):
     """
-    创建 VideoExecutor 节点
+    创建 VideoExecutor 节点 (支持动态工具配置)
     
     Args:
         llm: 语言模型
-        tools: 视频相关工具列表
+        tools: 所有可用工具列表 (会根据 state.EXECUTOR_TOOLS 过滤)
         
     Returns:
         video_executor 节点函数
     """
-    # 过滤出视频相关工具
-    video_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["video", "sora"])]
-    
-    if not video_tools:
-        logger.warning("没有找到视频相关工具，使用所有工具")
-        video_tools = tools
-    
-    # 绑定工具到 LLM
-    llm_with_tools = llm.bind_tools(video_tools)
     
     def video_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
         """
         视频执行者节点：执行视频生成任务
         """
         logger.info("VideoExecutor 开始执行")
+        
+        # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
+        video_tools = _get_available_tools(tools, "video_executor", state)
+        
+        if not video_tools:
+            logger.warning("VideoExecutor 没有可用工具，使用备用方案")
+            video_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["video", "sora"])]
+        
+        # 动态绑定工具到 LLM
+        llm_with_tools = llm.bind_tools(video_tools) if video_tools else llm
         
         # 获取当前步骤信息
         current_step = _get_current_step(state)
@@ -219,30 +279,31 @@ def create_general_executor_node(
     tools: List[BaseTool]
 ):
     """
-    创建 GeneralExecutor 节点
+    创建 GeneralExecutor 节点 (支持动态工具配置)
     
     Args:
         llm: 语言模型
-        tools: 通用工具列表
+        tools: 所有可用工具列表 (会根据 state.EXECUTOR_TOOLS 过滤)
         
     Returns:
         general_executor 节点函数
     """
-    # 过滤出通用工具
-    general_tools = [t for t in tools if "status" in t.name.lower() or "config" in t.name.lower()]
-    
-    if not general_tools:
-        # 使用所有工具作为后备
-        general_tools = tools
-    
-    # 绑定工具到 LLM
-    llm_with_tools = llm.bind_tools(general_tools) if general_tools else llm
     
     def general_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
         """
         通用执行者节点：执行状态查询等任务
         """
         logger.info("GeneralExecutor 开始执行")
+        
+        # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
+        general_tools = _get_available_tools(tools, "general_executor", state)
+        
+        if not general_tools:
+            logger.warning("GeneralExecutor 没有可用工具，使用备用方案")
+            general_tools = [t for t in tools if "status" in t.name.lower() or "config" in t.name.lower()]
+        
+        # 动态绑定工具到 LLM
+        llm_with_tools = llm.bind_tools(general_tools) if general_tools else llm
         
         # 获取当前步骤信息
         current_step = _get_current_step(state)

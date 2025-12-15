@@ -7,6 +7,7 @@
 对标 LangManus 实现：
 - apply_prompt_template 返回消息列表 (包含 system prompt + state messages)
 - RESPONSE_FORMAT 用于格式化执行者输出
+- TEAM_MEMBERS 从 state 中动态获取，支持运行时配置
 """
 
 import os
@@ -16,7 +17,11 @@ from typing import Any
 
 from langchain_core.prompts import PromptTemplate
 
-from state.schemas import AgentState
+from state.schemas import (
+    AgentState, 
+    TEAM_MEMBERS as DEFAULT_TEAM_MEMBERS,
+    DEFAULT_EXECUTOR_TOOLS,
+)
 
 
 # ============================================================
@@ -39,25 +44,21 @@ def get_prompt_template(prompt_name: str) -> str:
         
     Returns:
         处理后的模板字符串，使用 {VAR} 格式占位符
+        
+    对标 LangManus:
+    - 转义花括号 { } → {{ }}
+    - 替换 <<VAR>> → {VAR}
     """
-    template_path = os.path.join(os.path.dirname(__file__), f"{prompt_name}.md")
-    
-    if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Prompt template not found: {template_path}")
-    
-    with open(template_path, "r", encoding="utf-8") as f:
-        template = f.read()
-    
+    template = open(os.path.join(os.path.dirname(__file__), f"{prompt_name}.md"), encoding="utf-8").read()
     # 对标 LangManus: 转义花括号，替换 <<VAR>> 为 {VAR}
     template = template.replace("{", "{{").replace("}", "}}")
     template = re.sub(r"<<([^>>]+)>>", r"{\1}", template)
-    
     return template
 
 
 def apply_prompt_template(prompt_name: str, state: AgentState) -> list:
     """
-    加载并应用提示词模板 (对标 LangManus)
+    加载并应用提示词模板 (完全对标 LangManus)
     
     Args:
         prompt_name: 模板名称 (不含 .md 后缀)
@@ -67,34 +68,120 @@ def apply_prompt_template(prompt_name: str, state: AgentState) -> list:
         消息列表 [{"role": "system", "content": ...}, ...messages...]
         
     对标 LangManus:
+    - 使用 PromptTemplate.format() 进行变量替换
     - 返回格式: [system_message] + state["messages"]
-    - 自动注入 CURRENT_TIME
+    - TEAM_MEMBERS 从 state 中动态获取 (支持动态工具加载)
+    - EXECUTOR_TOOLS 支持最小颗粒度的工具配置
     """
-    # 准备模板变量
+    # 从 state 获取动态配置，如果没有则使用默认值
+    team_members = state.get("TEAM_MEMBERS", DEFAULT_TEAM_MEMBERS)
+    executor_tools = state.get("EXECUTOR_TOOLS", DEFAULT_EXECUTOR_TOOLS)
+    
+    # 准备模板变量 (预先格式化复杂字段，避免 KeyError)
     template_vars = {
-        "CURRENT_TIME": datetime.now().strftime("%a %b %d %Y %H:%M:%S %z"),
+        # 动态配置 (从 state 获取，支持运行时配置)
+        "TEAM_MEMBERS": ", ".join(team_members) if isinstance(team_members, list) else str(team_members),
+        "EXECUTOR_CAPABILITIES": format_executor_capabilities(team_members, executor_tools),
+        
+        # Supervisor 模板变量 (预先格式化)
+        "CURRENT_PLAN": format_current_plan(state.get("full_plan")),
+        "CURRENT_STEP_INDEX": str(state.get("current_step_index", 0)),
+        "TOTAL_STEPS": str(state.get("total_steps", 0)),
+        "EXECUTION_HISTORY": format_execution_history(state.get("step_results")),
+        
+        # Reporter 模板变量 (预先格式化)
+        "STEP_RESULTS": format_step_results(state.get("step_results")),
     }
     
-    # 从 state 中提取额外变量 (如 full_plan 等)
-    extra_vars = {}
-    for key in ["full_plan", "plan_title", "plan_thought", "current_step_index", "total_steps"]:
-        if state.get(key) is not None:
-            extra_vars[key] = state.get(key)
-    
-    # 格式化系统提示词
-    try:
-        system_prompt = PromptTemplate(
-            input_variables=["CURRENT_TIME"],
-            template=get_prompt_template(prompt_name),
-        ).format(**template_vars, **extra_vars)
-    except KeyError:
-        # 如果模板中有未提供的变量，使用简单替换
-        template = get_prompt_template(prompt_name)
-        system_prompt = template.format(**{**template_vars, **extra_vars})
+    # 对标 LangManus: 使用 PromptTemplate.format()
+    system_prompt = PromptTemplate(
+        input_variables=["CURRENT_TIME"],
+        template=get_prompt_template(prompt_name),
+    ).format(
+        CURRENT_TIME=datetime.now().strftime("%a %b %d %Y %H:%M:%S %z"),
+        **template_vars
+    )
     
     # 返回消息列表 (对标 LangManus)
-    messages = state.get("messages", [])
-    return [{"role": "system", "content": system_prompt}] + list(messages)
+    return [{"role": "system", "content": system_prompt}] + list(state.get("messages", []))
+
+
+def format_executor_capabilities(
+    team_members: list[str], 
+    executor_tools: dict[str, list[str]]
+) -> str:
+    """
+    格式化执行者能力描述 (基于动态工具配置)
+    
+    Args:
+        team_members: 执行者列表
+        executor_tools: 每个执行者的工具列表
+        
+    Returns:
+        格式化的能力描述字符串，包含详细的工具说明
+    """
+    # 工具描述映射
+    TOOL_DESCRIPTIONS = {
+        "text_to_image": "文本生成图片",
+        "image_edit": "图片编辑/重绘",
+        "image_edit_banana_pro": "Banana Pro 图片编辑",
+        "remove_watermark": "去除水印",
+        "text_to_video": "文本生成视频",
+        "first_frame_to_video": "首帧图片生成视频",
+        "get_task_status": "查询任务状态",
+        "update_global_config": "更新全局配置",
+    }
+    
+    lines = []
+    for executor in team_members:
+        tools = executor_tools.get(executor, [])
+        
+        if executor == "reporter":
+            lines.append(f"- **`{executor}`**: Writes a professional summary based on the results of each step. Must be used as the final step.")
+        elif tools:
+            # 生成工具描述
+            tool_descs = []
+            for tool in tools:
+                desc = TOOL_DESCRIPTIONS.get(tool, tool)
+                tool_descs.append(f"{tool} ({desc})")
+            
+            tools_str = ", ".join(tool_descs)
+            lines.append(f"- **`{executor}`**: Available tools: {tools_str}")
+        else:
+            lines.append(f"- **`{executor}`**: ⚠️ No tools available (disabled)")
+    
+    if not lines:
+        return "⚠️ No executors configured. Please check EXECUTOR_TOOLS configuration."
+    
+    return "\n".join(lines)
+
+
+def get_tools_for_executor(
+    executor_name: str,
+    executor_tools: dict[str, list[str]] | None = None
+) -> list[str]:
+    """
+    获取指定执行者的可用工具列表
+    
+    Args:
+        executor_name: 执行者名称
+        executor_tools: 工具配置，如果为 None 则使用默认配置
+        
+    Returns:
+        工具名称列表
+        
+    用法:
+        # 使用默认配置
+        tools = get_tools_for_executor("image_executor")
+        
+        # 使用自定义配置
+        custom_tools = {"image_executor": ["text_to_image"]}
+        tools = get_tools_for_executor("image_executor", custom_tools)
+    """
+    if executor_tools is None:
+        executor_tools = DEFAULT_EXECUTOR_TOOLS
+    
+    return executor_tools.get(executor_name, [])
 
 
 def apply_prompt_template_str(prompt_name: str, variables: dict[str, Any] | None = None) -> str:
