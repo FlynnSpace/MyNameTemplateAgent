@@ -51,15 +51,21 @@ def create_reporter_node(llm: BaseChatModel):
         logger.debug(f"Current state messages: {state.get('messages', [])}")
         logger.debug(f"Reporter 响应: {response}")
         
-        # 格式化输出 (对标 LangManus: RESPONSE_FORMAT)
+        # Reporter 的输出是给用户看的最终报告
+        # 使用 RESPONSE_FORMAT 用于内部通信（让 Supervisor 知道 Reporter 已完成）
+        # 同时保留干净的 response.content 供前端提取展示
+        formatted_for_supervisor = RESPONSE_FORMAT.format("reporter", response.content)
+        
         return Command(
             update={
                 "messages": [
                     HumanMessage(
-                        content=RESPONSE_FORMAT.format("reporter", response.content),
+                        content=formatted_for_supervisor,
                         name="reporter",
                     )
-                ]
+                ],
+                # 额外存储干净的报告内容，供前端直接使用
+                "final_report": response.content,
             },
             goto="supervisor",
         )

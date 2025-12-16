@@ -9,10 +9,7 @@ from .templates import (
     apply_prompt_template,
     
     # 格式化辅助函数
-    format_executors_info,
-    format_execution_history,
     format_step_results,
-    format_current_plan,
     
     # 便捷提示词获取函数
     get_planner_prompt,
@@ -33,10 +30,7 @@ __all__ = [
     "apply_prompt_template",
     
     # 格式化工具
-    "format_executors_info",
-    "format_execution_history",
     "format_step_results",
-    "format_current_plan",
     
     # 提示词获取
     "get_planner_prompt",

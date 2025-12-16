@@ -21,7 +21,7 @@ You are an image generation specialist tasked with executing image-related creat
 
 # Available Tools
 
-- **image_edit_by_ppio_banana_pro_create_task**: Generate or edit images using Nano Banana Pro model
+- **image_edit_by_ppio_banana_pro_create_task**: Edit images using Nano Banana Pro model
   - Required: prompt, image_urls (for editing), seed, resolution, aspect_ratio
   - Returns: task_id
 

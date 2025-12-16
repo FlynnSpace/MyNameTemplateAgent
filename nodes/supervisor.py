@@ -47,8 +47,27 @@ def create_supervisor_node(llm: BaseChatModel):
         
         # 使用 structured_output 获取决策 (对标 LangManus: with_structured_output)
         response = llm.with_structured_output(SupervisorDecision).invoke(messages)
+        logger.info(f"Supervisor 响应: {response}") # TODO: 删除
+        # 安全获取 next 字段，处理可能的异常情况
+        goto = None
+        if response is not None:
+            # response 可能是 dict 或 Pydantic 对象
+            if isinstance(response, dict):
+                # 优先使用 next 字段
+                goto = response.get("next")
+            # 豆包模型返回的 tool call 列表格式: [{'name': 'xxx', 'parameters': {...}}]
+            elif isinstance(response, list) and len(response) > 0:
+                first_call = response[0]
+                if isinstance(first_call, dict) and 'name' in first_call:
+                    goto = first_call.get('name')
+                    logger.debug(f"从豆包 tool call 格式中提取 goto: {goto}")
+            elif hasattr(response, "next"):
+                goto = response.next
         
-        goto = response["next"]
+        # 如果无法获取有效的 next，默认结束
+        if goto is None:
+            logger.warning(f"Supervisor 无法解析响应: {response}，默认结束工作流")
+            goto = "__end__"
         
         logger.debug(f"Current state messages: {state.get('messages', [])}")
         logger.debug(f"Supervisor 响应: {response}")

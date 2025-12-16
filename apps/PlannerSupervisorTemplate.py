@@ -15,6 +15,7 @@ START -> coordinator -> planner -> supervisor <-> executors -> END
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from openai import OpenAI
 
 from graphs.builder import create_planner_supervisor_graph
 from tools.registry import get_all_tools
@@ -34,10 +35,15 @@ logger = get_logger("loopskill.PlannerSupervisorTemplate")
 # 主要模型 (用于 coordinator, supervisor, executors, reporter)
 llm = ChatOpenAI(
     model=os.getenv("BASIC_MODEL", "doubao-seed-1-6-vision-250815"),
-    temperature=0.0,
+    temperature=0.5,
     api_key=os.getenv("DOUBAO_API_KEY"),
     base_url=os.getenv("DOUBAO_BASE_URL")
 )
+#llm = ChatOpenAI(
+#    model="google/gemini-2.5-flash",
+#    openai_api_key=os.getenv("ROUTER_GEMINI_KEY"),
+#    openai_api_base=os.getenv("ROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+#)
 
 # 推理增强模型 (用于 planner 的深度思考模式，可选)
 # 如果设置了 REASONING_MODEL，则启用

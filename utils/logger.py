@@ -27,13 +27,19 @@ def get_logger(name: str = "mynamechat") -> logging.Logger:
     """
     Return a configured logger that writes to both console and file.
     Each logger name is cached to avoid duplicate handlers.
+    
+    日志级别通过环境变量 LOG_LEVEL 控制，默认为 INFO。
+    设置 LOG_LEVEL=DEBUG 可以看到 debug 级别的日志。
     """
     if name in _LOGGER_CACHE:
         return _LOGGER_CACHE[name]
 
     log_path = _build_log_path()
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    
+    # 从环境变量读取日志级别，默认 INFO
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logger.setLevel(getattr(logging, log_level, logging.INFO))
 
     formatter = logging.Formatter(
         "%(asctime)s [%(levelname)s] [%(threadName)s] %(name)s - %(message)s"

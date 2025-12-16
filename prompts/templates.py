@@ -28,7 +28,7 @@ from state.schemas import (
 # 对标 LangManus: RESPONSE_FORMAT
 # ============================================================
 
-RESPONSE_FORMAT = "Response from {}:\n\n<response>\n{}\n</response>\n\n*Please execute the next step.*"
+RESPONSE_FORMAT = "Response from {}:\n\n<response>\n{}\n</response>\n\n*请执行下一步。*"
 
 
 # ============================================================
@@ -77,19 +77,12 @@ def apply_prompt_template(prompt_name: str, state: AgentState) -> list:
     team_members = state.get("TEAM_MEMBERS", DEFAULT_TEAM_MEMBERS)
     executor_tools = state.get("EXECUTOR_TOOLS", DEFAULT_EXECUTOR_TOOLS)
     
-    # 准备模板变量 (预先格式化复杂字段，避免 KeyError)
+    # 准备模板变量 (对标 LangManus: 简洁)
     template_vars = {
         # 动态配置 (从 state 获取，支持运行时配置)
         "TEAM_MEMBERS": ", ".join(team_members) if isinstance(team_members, list) else str(team_members),
-        "EXECUTOR_CAPABILITIES": format_executor_capabilities(team_members, executor_tools),
         
-        # Supervisor 模板变量 (预先格式化)
-        "CURRENT_PLAN": format_current_plan(state.get("full_plan")),
-        "CURRENT_STEP_INDEX": str(state.get("current_step_index", 0)),
-        "TOTAL_STEPS": str(state.get("total_steps", 0)),
-        "EXECUTION_HISTORY": format_execution_history(state.get("step_results")),
-        
-        # Reporter 模板变量 (预先格式化)
+        # Reporter 模板变量
         "STEP_RESULTS": format_step_results(state.get("step_results")),
     }
     
@@ -104,56 +97,6 @@ def apply_prompt_template(prompt_name: str, state: AgentState) -> list:
     
     # 返回消息列表 (对标 LangManus)
     return [{"role": "system", "content": system_prompt}] + list(state.get("messages", []))
-
-
-def format_executor_capabilities(
-    team_members: list[str], 
-    executor_tools: dict[str, list[str]]
-) -> str:
-    """
-    格式化执行者能力描述 (基于动态工具配置)
-    
-    Args:
-        team_members: 执行者列表
-        executor_tools: 每个执行者的工具列表
-        
-    Returns:
-        格式化的能力描述字符串，包含详细的工具说明
-    """
-    # 工具描述映射
-    TOOL_DESCRIPTIONS = {
-        "text_to_image": "文本生成图片",
-        "image_edit": "图片编辑/重绘",
-        "image_edit_banana_pro": "Banana Pro 图片编辑",
-        "remove_watermark": "去除水印",
-        "text_to_video": "文本生成视频",
-        "first_frame_to_video": "首帧图片生成视频",
-        "get_task_status": "查询任务状态",
-        "update_global_config": "更新全局配置",
-    }
-    
-    lines = []
-    for executor in team_members:
-        tools = executor_tools.get(executor, [])
-        
-        if executor == "reporter":
-            lines.append(f"- **`{executor}`**: Writes a professional summary based on the results of each step. Must be used as the final step.")
-        elif tools:
-            # 生成工具描述
-            tool_descs = []
-            for tool in tools:
-                desc = TOOL_DESCRIPTIONS.get(tool, tool)
-                tool_descs.append(f"{tool} ({desc})")
-            
-            tools_str = ", ".join(tool_descs)
-            lines.append(f"- **`{executor}`**: Available tools: {tools_str}")
-        else:
-            lines.append(f"- **`{executor}`**: ⚠️ No tools available (disabled)")
-    
-    if not lines:
-        return "⚠️ No executors configured. Please check EXECUTOR_TOOLS configuration."
-    
-    return "\n".join(lines)
 
 
 def get_tools_for_executor(
@@ -219,39 +162,6 @@ def apply_prompt_template_str(prompt_name: str, variables: dict[str, Any] | None
     return template
 
 
-def format_executors_info() -> str:
-    """
-    格式化执行者信息，用于 Supervisor 模板
-    """
-    return """- **image_executor**: 图像生成与编辑 (text-to-image, image editing, remove watermark)
-- **video_executor**: 视频生成 (text-to-video, image-to-video)
-- **general_executor**: 通用任务 (状态查询, 配置管理)
-- **reporter**: 生成最终报告"""
-
-
-def format_execution_history(step_results: list[dict] | None) -> str:
-    """
-    格式化执行历史，用于 Supervisor 模板
-    
-    Args:
-        step_results: 步骤执行结果列表
-        
-    Returns:
-        格式化的执行历史字符串
-    """
-    if not step_results:
-        return "暂无执行记录"
-    
-    lines = []
-    for result in step_results:
-        status_emoji = "✅" if result.get("status") == "success" else "❌" if result.get("status") == "failed" else "⏳"
-        lines.append(
-            f"- 步骤 {result.get('step_index', '?')}: {status_emoji} {result.get('executor', 'unknown')} - {result.get('summary', 'No summary')}"
-        )
-    
-    return "\n".join(lines)
-
-
 def format_step_results(step_results: list[dict] | None) -> str:
     """
     格式化步骤执行结果，用于 Reporter 模板
@@ -285,37 +195,6 @@ def format_step_results(step_results: list[dict] | None) -> str:
     return "\n".join(lines)
 
 
-def format_current_plan(full_plan: str | None) -> str:
-    """
-    格式化当前执行计划，用于 Supervisor 模板
-    
-    Args:
-        full_plan: JSON 格式的完整计划字符串
-        
-    Returns:
-        格式化的计划字符串
-    """
-    if not full_plan:
-        return "暂无执行计划"
-    
-    try:
-        import json
-        plan = json.loads(full_plan)
-        
-        lines = [f"**任务**: {plan.get('title', 'Unknown')}"]
-        lines.append(f"**理解**: {plan.get('thought', 'N/A')}")
-        lines.append("\n**步骤列表**:")
-        
-        for i, step in enumerate(plan.get("steps", [])):
-            deps = step.get("depends_on", [])
-            deps_str = f" (依赖: {deps})" if deps else ""
-            lines.append(f"{i}. [{step.get('executor', '?')}] {step.get('title', 'Unknown')}{deps_str}")
-        
-        return "\n".join(lines)
-    except (json.JSONDecodeError, TypeError):
-        return full_plan
-
-
 # ============================================================
 # 便捷函数：为各角色生成完整提示词字符串 (兼容旧用法)
 # ============================================================
@@ -338,35 +217,24 @@ def get_planner_prompt(team_members: list[str] | None = None) -> str:
     })
 
 
-def get_supervisor_prompt(
-    full_plan: str | None = None,
-    current_step_index: int = 0,
-    total_steps: int = 0,
-    step_results: list[dict] | None = None,
-    team_members: list[str] | None = None
-) -> str:
+def get_supervisor_prompt(team_members: list[str] | None = None) -> str:
     """
     获取 Supervisor 的完整提示词 (字符串格式)
     
     Args:
-        full_plan: 完整执行计划 (JSON 字符串)
-        current_step_index: 当前步骤索引
-        total_steps: 总步骤数
-        step_results: 已执行步骤的结果
         team_members: 团队成员列表
         
     Returns:
         完整的 Supervisor 提示词
+        
+    Note:
+        Supervisor 从 messages 中获取计划和执行历史，不需要额外参数
     """
     if team_members is None:
         team_members = ["image_executor", "video_executor", "general_executor", "reporter"]
     
     return apply_prompt_template_str("supervisor", {
         "TEAM_MEMBERS": ", ".join(team_members),
-        "CURRENT_PLAN": format_current_plan(full_plan),
-        "CURRENT_STEP_INDEX": str(current_step_index),
-        "TOTAL_STEPS": str(total_steps),
-        "EXECUTION_HISTORY": format_execution_history(step_results)
     })
 
 

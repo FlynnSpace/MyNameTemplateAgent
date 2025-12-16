@@ -81,6 +81,9 @@ class AgentState(TypedDict):
     plan_thought: str | None        # Planner 对任务的理解
     plan_title: str | None          # 任务标题
     
+    # --- 最终输出 ---
+    final_report: str | None        # Reporter 生成的干净报告内容 (供前端直接展示)
+    
     # --- 模式控制 ---
     deep_thinking_mode: bool        # 是否启用深度思考模式 (Planner 使用 reasoning LLM)
     enable_planning: bool           # 是否启用规划模式 (False 时退化为 ReAct) 

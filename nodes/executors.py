@@ -10,6 +10,11 @@ Executors 节点
 支持动态工具配置:
 - 从 state.EXECUTOR_TOOLS 获取每个执行者可用的工具列表
 - 前端可通过传入 EXECUTOR_TOOLS 控制工具的启用/禁用
+
+安全校验:
+- 执行前检查是否有可用工具
+- 如果没有，使用 LLM 生成友好的错误消息
+- 告知用户需要添加哪些工具
 """
 
 import json
@@ -22,10 +27,142 @@ from langgraph.types import Command
 from langgraph.prebuilt import ToolNode
 
 from state.schemas import AgentState, DEFAULT_EXECUTOR_TOOLS
-from prompts.templates import get_executor_prompt
+from prompts.templates import get_executor_prompt, RESPONSE_FORMAT
 from utils.logger import get_logger
 
 logger = get_logger("loopskill.nodes.executors")
+
+
+# ============================================================
+# 工具注册表 - 全部可用工具的描述（用于错误提示）
+# ============================================================
+
+ALL_TOOLS_REGISTRY = {
+    # 图片相关工具
+    "text_to_image": {
+        "name": "文字生成图片",
+        "description": "根据文字描述生成图片",
+        "executor": "image_executor"
+    },
+    "image_edit": {
+        "name": "图片编辑",
+        "description": "对现有图片进行编辑、修改",
+        "executor": "image_executor"
+    },
+    "image_edit_banana_pro": {
+        "name": "Banana Pro 图片编辑",
+        "description": "使用 Banana Pro 进行高级图片编辑",
+        "executor": "image_executor"
+    },
+    "remove_watermark": {
+        "name": "去除水印",
+        "description": "去除图片中的水印",
+        "executor": "image_executor"
+    },
+    # 视频相关工具
+    "text_to_video": {
+        "name": "文字生成视频",
+        "description": "根据文字描述生成视频",
+        "executor": "video_executor"
+    },
+    "first_frame_to_video": {
+        "name": "首帧生成视频",
+        "description": "根据首帧图片生成视频",
+        "executor": "video_executor"
+    },
+    # 通用工具
+    "get_task_status": {
+        "name": "查询任务状态",
+        "description": "查询异步任务的执行状态",
+        "executor": "general_executor"
+    },
+    "update_global_config": {
+        "name": "更新全局配置",
+        "description": "更新系统全局配置参数",
+        "executor": "general_executor"
+    },
+}
+
+# LLM 润色提示词 - 工具不可用时的错误消息
+TOOL_UNAVAILABLE_PROMPT = """你是一个友好的助手。用户想要完成一个创作任务，但当前没有可用的工具。
+
+请根据以下信息，用简洁、友好的语言告诉用户：
+1. 他们的需求目前无法完成
+2. 需要添加什么工具才能完成（用通俗的名称，如"图片生成"、"视频生成"）
+3. 引导用户去「添加工具」
+
+要求：
+- 不要使用任何技术术语
+- 语气友好、简洁
+- 不要道歉太多次
+
+任务描述: {task_des.cription}
+执行者类型: {executor_type}
+需要的工具类型: {suggested_tools}
+
+请直接输出给用户的消息："""
+
+
+# ============================================================
+# 安全校验函数
+# ============================================================
+
+def _check_tools_available(
+    tools: List[BaseTool],
+    executor_name: str,
+    llm: BaseChatModel,
+    task_description: str
+) -> tuple[bool, str | None]:
+    """
+    检查当前可用工具是否能满足任务需求
+    
+    Args:
+        tools: 当前可用的工具列表
+        executor_name: 执行者名称
+        llm: 语言模型（用于生成友好的错误消息）
+        task_description: 任务描述
+        
+    Returns:
+        (is_available, error_message):
+        - is_available: 是否有可用工具
+        - error_message: 如果不可用，返回 LLM 润色后的错误消息
+    """
+    if tools and len(tools) > 0:
+        return True, None
+    
+    # 没有可用工具，生成友好的错误消息
+    logger.warning(f"{executor_name} 没有可用工具")
+    
+    # 获取该执行者类型的建议工具
+    executor_type_map = {
+        "image_executor": "图片处理",
+        "video_executor": "视频生成",
+        "general_executor": "通用任务"
+    }
+    executor_type = executor_type_map.get(executor_name, executor_name)
+    
+    # 获取建议添加的工具
+    suggested_tools = []
+    for tool_id, tool_info in ALL_TOOLS_REGISTRY.items():
+        if tool_info["executor"] == executor_name:
+            suggested_tools.append(tool_info["name"])
+    
+    suggested_tools_str = "、".join(suggested_tools) if suggested_tools else "相关工具"
+    
+    # 使用 LLM 润色错误消息
+    try:
+        prompt = TOOL_UNAVAILABLE_PROMPT.format(
+            task_description=task_description[:200] if task_description else "创作任务",
+            executor_type=executor_type,
+            suggested_tools=suggested_tools_str
+        )
+        response = llm.invoke([HumanMessage(content=prompt)])
+        error_message = response.content if hasattr(response, "content") else str(response)
+    except Exception as e:
+        logger.error(f"LLM 润色错误消息失败: {e}")
+        error_message = f"抱歉，当前没有可用的{executor_type}工具。请在「添加工具」中启用 {suggested_tools_str} 后重试。"
+    
+    return False, error_message
 
 
 # ============================================================
@@ -100,19 +237,35 @@ def create_image_executor_node(
     - 前端可通过修改 EXECUTOR_TOOLS 来启用/禁用特定工具
     """
     
-    def image_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
+    def image_executor_node(state: AgentState) -> Command[Literal["supervisor", "__end__"]]:
         """
         图像执行者节点：执行图像生成/编辑任务
+        
+        安全校验：执行前检查是否有可用工具，没有则直接结束
         """
         logger.info("ImageExecutor 开始执行")
         
         # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
         image_tools = _get_available_tools(tools, "image_executor", state)
         
-        if not image_tools:
-            logger.warning("ImageExecutor 没有可用工具，使用备用方案")
-            # 备用：根据关键词过滤
-            image_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["image", "seedream", "banana", "watermark"])]
+        # ============================================================
+        # 安全校验：检查是否有可用工具
+        # ============================================================
+        current_step = _get_current_step(state)
+        task_description = current_step.get("description", "") if current_step else ""
+        
+        is_available, error_message = _check_tools_available(
+            image_tools, "image_executor", llm, task_description
+        )
+        
+        if not is_available:
+            logger.warning("ImageExecutor 没有可用工具，结束执行")
+            return Command(
+                goto="__end__",
+                update={
+                    "messages": [AIMessage(content=error_message, name="image_executor")],
+                }
+            )
         
         # 动态绑定工具到 LLM
         llm_with_tools = llm.bind_tools(image_tools) if image_tools else llm
@@ -166,7 +319,7 @@ def create_image_executor_node(
             else:
                 # 没有工具调用
                 content = response.content if hasattr(response, "content") else str(response)
-                logger.warning(f"ImageExecutor 没有调用工具: {content[:200]}")
+                logger.warning(f"ImageExecutor 没有调用工具: {content}")
                 return _create_error_result(state, "image_executor", "没有执行工具调用")
                 
         except Exception as e:
@@ -195,24 +348,40 @@ def create_video_executor_node(
         video_executor 节点函数
     """
     
-    def video_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
+    def video_executor_node(state: AgentState) -> Command[Literal["supervisor", "__end__"]]:
         """
         视频执行者节点：执行视频生成任务
+        
+        安全校验：执行前检查是否有可用工具，没有则直接结束
         """
         logger.info("VideoExecutor 开始执行")
         
         # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
         video_tools = _get_available_tools(tools, "video_executor", state)
         
-        if not video_tools:
-            logger.warning("VideoExecutor 没有可用工具，使用备用方案")
-            video_tools = [t for t in tools if any(kw in t.name.lower() for kw in ["video", "sora"])]
+        # ============================================================
+        # 安全校验：检查是否有可用工具
+        # ============================================================
+        current_step = _get_current_step(state)
+        task_description = current_step.get("description", "") if current_step else ""
+        
+        is_available, error_message = _check_tools_available(
+            video_tools, "video_executor", llm, task_description
+        )
+        
+        if not is_available:
+            logger.warning("VideoExecutor 没有可用工具，结束执行")
+            return Command(
+                goto="__end__",
+                update={
+                    "messages": [AIMessage(content=error_message, name="video_executor")],
+                }
+            )
         
         # 动态绑定工具到 LLM
-        llm_with_tools = llm.bind_tools(video_tools) if video_tools else llm
+        llm_with_tools = llm.bind_tools(video_tools)
         
         # 获取当前步骤信息
-        current_step = _get_current_step(state)
         if not current_step:
             logger.error("无法获取当前步骤")
             return _create_error_result(state, "video_executor", "无法获取当前步骤")
@@ -260,7 +429,7 @@ def create_video_executor_node(
             else:
                 # 没有工具调用
                 content = response.content if hasattr(response, "content") else str(response)
-                logger.warning(f"VideoExecutor 没有调用工具: {content[:200]}")
+                logger.warning(f"VideoExecutor 没有调用工具: {content}")
                 return _create_error_result(state, "video_executor", "没有执行工具调用")
                 
         except Exception as e:
@@ -289,24 +458,40 @@ def create_general_executor_node(
         general_executor 节点函数
     """
     
-    def general_executor_node(state: AgentState) -> Command[Literal["supervisor"]]:
+    def general_executor_node(state: AgentState) -> Command[Literal["supervisor", "__end__"]]:
         """
         通用执行者节点：执行状态查询等任务
+        
+        安全校验：执行前检查是否有可用工具，没有则直接结束
         """
         logger.info("GeneralExecutor 开始执行")
         
         # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
         general_tools = _get_available_tools(tools, "general_executor", state)
         
-        if not general_tools:
-            logger.warning("GeneralExecutor 没有可用工具，使用备用方案")
-            general_tools = [t for t in tools if "status" in t.name.lower() or "config" in t.name.lower()]
+        # ============================================================
+        # 安全校验：检查是否有可用工具
+        # ============================================================
+        current_step = _get_current_step(state)
+        task_description = current_step.get("description", "") if current_step else ""
+        
+        is_available, error_message = _check_tools_available(
+            general_tools, "general_executor", llm, task_description
+        )
+        
+        if not is_available:
+            logger.warning("GeneralExecutor 没有可用工具，结束执行")
+            return Command(
+                goto="__end__",
+                update={
+                    "messages": [AIMessage(content=error_message, name="general_executor")],
+                }
+            )
         
         # 动态绑定工具到 LLM
-        llm_with_tools = llm.bind_tools(general_tools) if general_tools else llm
+        llm_with_tools = llm.bind_tools(general_tools)
         
         # 获取当前步骤信息
-        current_step = _get_current_step(state)
         if not current_step:
             logger.error("无法获取当前步骤")
             return _create_error_result(state, "general_executor", "无法获取当前步骤")
@@ -491,7 +676,12 @@ def _create_success_result(
     task_id: str | None,
     summary: str
 ) -> Command[Literal["supervisor"]]:
-    """创建成功结果并返回到 supervisor"""
+    """
+    创建成功结果并返回到 supervisor (对标 LangManus)
+    
+    关键：使用 RESPONSE_FORMAT 格式化消息，包含 "Please execute the next step." 提示
+    这样 Supervisor 可以清楚地知道当前执行者已完成，需要执行下一步
+    """
     current_index = state.get("current_step_index", 0)
     step_results = state.get("step_results", []).copy()
     
@@ -507,11 +697,16 @@ def _create_success_result(
     
     logger.info(f"步骤 {current_index} 执行成功: {summary}")
     
+    # 对标 LangManus: 使用 RESPONSE_FORMAT 格式化消息
+    # RESPONSE_FORMAT 包含 "Please execute the next step." 提示
+    response_content = summary + (f" (Task ID: {task_id})" if task_id else "")
+    formatted_message = RESPONSE_FORMAT.format(executor, response_content)
+    
     return Command(
         goto="supervisor",
         update={
-            "messages": [AIMessage(
-                content=f"[{executor}] 执行完成: {summary}" + (f" (Task ID: {task_id})" if task_id else ""),
+            "messages": [HumanMessage(
+                content=formatted_message,
                 name=executor
             )],
             "current_step_index": current_index + 1,  # 推进到下一步
@@ -527,7 +722,11 @@ def _create_error_result(
     executor: str,
     error_message: str
 ) -> Command[Literal["supervisor"]]:
-    """创建错误结果并返回到 supervisor"""
+    """
+    创建错误结果并返回到 supervisor (对标 LangManus)
+    
+    即使失败也使用 RESPONSE_FORMAT，让 Supervisor 知道需要继续执行
+    """
     current_index = state.get("current_step_index", 0)
     step_results = state.get("step_results", []).copy()
     
@@ -543,11 +742,14 @@ def _create_error_result(
     
     logger.error(f"步骤 {current_index} 执行失败: {error_message}")
     
+    # 对标 LangManus: 使用 RESPONSE_FORMAT 格式化消息
+    formatted_message = RESPONSE_FORMAT.format(executor, f"执行失败: {error_message}")
+    
     return Command(
         goto="supervisor",
         update={
-            "messages": [AIMessage(
-                content=f"[{executor}] 执行失败: {error_message}",
+            "messages": [HumanMessage(
+                content=formatted_message,
                 name=executor
             )],
             "current_step_index": current_index + 1,  # 仍然推进 (让 supervisor 决定是否重试)
