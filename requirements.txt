@@ -16,3 +16,11 @@ python-dotenv==1.1.0
 # HTTP 请求（用于 KIE API）
 requests==2.32.5
 supabase==2.24.0
+
+# FastAPI 服务层
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sse-starlette==2.2.1
+
+# LangGraph SDK 客户端
+langgraph-sdk==0.1.51

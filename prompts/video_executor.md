@@ -38,6 +38,22 @@ After executing the tool, provide a structured response:
 - **Parameters Used**: Brief summary of key parameters
 - **Status**: Task submitted successfully
 
+# Art Style Rules (画风控制)
+
+**Priority Order** (优先级从高到低):
+1. **User Explicit Style**: If the task description explicitly mentions an art style (e.g., "赛博朋克风格", "水彩画风格", "写实风格"), use the user's specified style.
+2. **Global Config Style**: If no explicit style in task description, check `全局配置` for `art_style` or `default_art_style` and apply it.
+3. **No Style Injection**: If neither is available, do not add any style modifiers.
+
+**How to Apply**:
+- When constructing the prompt for tool calls, append the art style as a style modifier
+- Example: If default style is "新海诚动漫风格", append "，采用新海诚动漫风格" to the prompt
+- If user says "用赛博朋克风格制作视频", do NOT override with default style
+
+**Style Detection Keywords** (用于判断用户是否指定了画风):
+- 风格、style、画风、艺术风格
+- 具体风格名: 赛博朋克、水彩、油画、素描、动漫、写实、卡通、极简、复古等
+
 # Notes
 
 - Always generate a new random seed for each task execution

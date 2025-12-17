@@ -35,7 +35,7 @@ logger = get_logger("loopskill.PlannerSupervisorTemplate")
 # 主要模型 (用于 coordinator, supervisor, executors, reporter)
 llm = ChatOpenAI(
     model=os.getenv("BASIC_MODEL", "doubao-seed-1-6-vision-250815"),
-    temperature=0.5,
+    temperature=0.0,
     api_key=os.getenv("DOUBAO_API_KEY"),
     base_url=os.getenv("DOUBAO_BASE_URL")
 )

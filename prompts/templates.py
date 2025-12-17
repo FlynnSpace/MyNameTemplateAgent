@@ -285,7 +285,7 @@ Use the seedream-v4-text-to-image model (API provided by KIE) to create a task t
 Arguments:
 - prompt (str): The user's image description.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
-- aspect_ratio (str): Image aspect ratio (e.g., "landscape_16_9").
+- aspect_ratio (str): Image aspect ratio (e.g., "landscape_16_9"). Options: ["square_hd", "portrait_4_3", "portrait_3_2", "portrait_16_9", "landscape_4_3", "landscape_3_2", "landscape_16_9", "landscape_21_9"].
 """
 
 # 图像编辑工具描述
@@ -296,7 +296,7 @@ Arguments:
 - image_urls (list[str]): URLs of the reference images.
 - seed (int): Random number. CHANGE THIS whenever the user asks to “retry” or “regenerate”.
 - resolution (str): Image resolution. Options: ["1K", "2K", "4K"].
-- aspect_ratio (str): Image aspect ratio. (e.g., "landscape_16_9").
+- aspect_ratio (str): Image aspect ratio. (e.g., "landscape_16_9"). Options: ["square_hd", "portrait_4_3", "portrait_3_2", "portrait_16_9", "landscape_4_3", "landscape_3_2", "landscape_16_9", "landscape_21_9"].
 """
 
 # Banana Pro 图像编辑工具描述

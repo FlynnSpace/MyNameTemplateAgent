@@ -54,7 +54,10 @@ def create_supervisor_node(llm: BaseChatModel):
             # response 可能是 dict 或 Pydantic 对象
             if isinstance(response, dict):
                 # 优先使用 next 字段
-                goto = response.get("next")
+                if response.get("next"):
+                    goto = response.get("next")
+                elif response.get("name"):
+                    goto = response.get("name")
             # 豆包模型返回的 tool call 列表格式: [{'name': 'xxx', 'parameters': {...}}]
             elif isinstance(response, list) and len(response) > 0:
                 first_call = response[0]

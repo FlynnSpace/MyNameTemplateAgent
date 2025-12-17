@@ -650,6 +650,7 @@ def _execute_tools(response, tools: List[BaseTool]) -> dict:
                 
                 results.append({
                     "tool": tool_name,
+                    "args": tool_args,
                     "result": result,
                     "task_id": task_id
                 })
@@ -658,14 +659,34 @@ def _execute_tools(response, tools: List[BaseTool]) -> dict:
                 logger.error(f"工具执行失败 {tool_name}: {e}")
                 results.append({
                     "tool": tool_name,
+                    "args": tool_args,
                     "error": str(e)
                 })
         else:
             logger.warning(f"未找到工具: {tool_name}")
     
+    # 生成人性化的工具调用摘要
+    tool_count = len(results)
+    count_text = "一个" if tool_count == 1 else f"{tool_count}个"
+    
+    tool_details = []
+    for r in results:
+        tool_name = r.get("tool", "unknown")
+        args = r.get("args", {})
+        # 格式化参数列表
+        args_list = [f"{k}={v}" for k, v in args.items()]
+        args_str = ", ".join(args_list) if args_list else "无"
+        
+        if "error" in r:
+            tool_details.append(f"使用到的接口：{tool_name} [执行失败]\n使用到的参数：{args_str}")
+        else:
+            tool_details.append(f"使用到的接口：{tool_name}\n使用到的参数：{args_str}")
+    
+    summary = f"执行了{count_text}工具调用：\n\n" + "\n\n".join(tool_details)
+    
     return {
         "task_id": task_id,
-        "summary": f"执行了 {len(results)} 个工具调用",
+        "summary": summary,
         "details": results
     }
 
@@ -699,8 +720,7 @@ def _create_success_result(
     
     # 对标 LangManus: 使用 RESPONSE_FORMAT 格式化消息
     # RESPONSE_FORMAT 包含 "Please execute the next step." 提示
-    response_content = summary + (f" (Task ID: {task_id})" if task_id else "")
-    formatted_message = RESPONSE_FORMAT.format(executor, response_content)
+    formatted_message = RESPONSE_FORMAT.format(executor, summary)
     
     return Command(
         goto="supervisor",

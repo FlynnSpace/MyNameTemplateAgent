@@ -40,16 +40,20 @@ def create_reporter_node(llm: BaseChatModel):
         - 使用 RESPONSE_FORMAT 格式化输出
         - 返回到 supervisor
         """
-        logger.info("Reporter write final report")
+        logger.info("Reporter 开始生成最终报告")
         
         # 应用提示词模板 (对标 LangManus: apply_prompt_template)
         messages = apply_prompt_template("reporter", state)
+        
+        # 调试：打印实际使用的提示词
+        logger.info(f"Reporter 提示词: {messages[0]['content'][:500]}...")
+        logger.info(f"Reporter step_results: {state.get('step_results')}")
         
         # 调用 LLM 生成报告
         response = llm.invoke(messages)
         
         logger.debug(f"Current state messages: {state.get('messages', [])}")
-        logger.debug(f"Reporter 响应: {response}")
+        logger.info(f"Reporter 响应: {response.content}")
         
         # Reporter 的输出是给用户看的最终报告
         # 使用 RESPONSE_FORMAT 用于内部通信（让 Supervisor 知道 Reporter 已完成）
