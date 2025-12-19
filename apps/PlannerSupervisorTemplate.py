@@ -33,11 +33,21 @@ logger = get_logger("loopskill.PlannerSupervisorTemplate")
 # ============================================================
 
 # 主要模型 (用于 coordinator, supervisor, executors, reporter)
-llm = ChatOpenAI(
-    model=os.getenv("BASIC_MODEL", "doubao-seed-1-6-vision-250815"),
+llm2 = ChatOpenAI(
+    model=os.getenv("BASIC_MODEL", "doubao-seed-1-8-251215"),
     temperature=0.0,
     api_key=os.getenv("DOUBAO_API_KEY"),
-    base_url=os.getenv("DOUBAO_BASE_URL")
+    base_url=os.getenv("DOUBAO_BASE_URL"),
+    model_kwargs={
+        "extra_body": {
+            "thinking": {"type": "enabled"},
+        }
+    },
+)
+llm = ChatOpenAI(model = "gpt-5-mini",
+    temperature=0.0,
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL")
 )
 #llm = ChatOpenAI(
 #    model="google/gemini-2.5-flash",
