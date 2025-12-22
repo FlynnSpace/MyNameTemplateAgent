@@ -31,7 +31,7 @@ def create_supervisor_node(llm: BaseChatModel):
         supervisor 节点函数
     """
     
-    def supervisor_node(state: AgentState) -> Command[Literal["image_executor", "video_executor", "general_executor", "reporter", "__end__"]]:
+    def supervisor_node(state: AgentState) -> Command[Literal["image_executor", "video_executor", "status_checker", "reporter", "__end__"]]:
         """
         监督者节点：决定下一步执行哪个 agent
         

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 # ============================================================
 
 # 默认执行者列表
-TEAM_MEMBERS = ["image_executor", "video_executor", "general_executor", "reporter"]
+TEAM_MEMBERS = ["image_executor", "video_executor", "status_checker", "reporter"]
 OPTIONS = TEAM_MEMBERS + ["FINISH"]
 
 # 默认工具配置：每个执行者可用的工具列表
@@ -25,16 +25,15 @@ DEFAULT_EXECUTOR_TOOLS: dict[str, list[str]] = {
         "text_to_video",           # 文本生成视频
         "first_frame_to_video",    # 首帧生成视频
     ],
-    "general_executor": [
+    "status_checker": [
         "get_task_status",         # 查询任务状态
-        "update_global_config",    # 更新全局配置
     ],
     "reporter": [],                # Reporter 不使用工具，只生成报告
 }
 
 # 保持兼容性
 EXECUTOR_TYPES = TEAM_MEMBERS
-ExecutorType = Literal["image_executor", "video_executor", "general_executor", "reporter", "FINISH"]
+ExecutorType = Literal["image_executor", "video_executor", "status_checker", "reporter", "FINISH"]
 
 
 class AgentState(TypedDict):
@@ -107,7 +106,7 @@ class LegacyAgentResponse(BaseModel):
 
 class PlanStep(BaseModel):
     """单个执行步骤"""
-    executor: str = Field(description="执行者名称: image_executor, video_executor, general_executor")
+    executor: str = Field(description="执行者名称: image_executor, video_executor, status_checker")
     title: str = Field(description="步骤标题")
     description: str = Field(description="详细描述，包含具体参数和要求")
     depends_on: list[int] = Field(default=[], description="依赖的步骤索引列表")
@@ -126,7 +125,7 @@ class SupervisorDecision(TypedDict):
     Supervisor 的路由决策 (对标 LangManus Router)
     Worker to route to next. If no workers needed, route to FINISH.
     """
-    next: Literal["image_executor", "video_executor", "general_executor", "reporter", "FINISH"]
+    next: Literal["image_executor", "video_executor", "status_checker", "reporter", "FINISH"]
 
 
 class StepResult(BaseModel):

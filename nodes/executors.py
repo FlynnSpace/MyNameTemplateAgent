@@ -5,7 +5,7 @@ Executors 节点
 包含:
 - ImageExecutor: 图像生成/编辑
 - VideoExecutor: 视频生成
-- GeneralExecutor: 通用任务 (状态查询等)
+- StatusChecker: 任务状态查询
 
 支持动态工具配置:
 - 从 state.EXECUTOR_TOOLS 获取每个执行者可用的工具列表
@@ -70,16 +70,11 @@ ALL_TOOLS_REGISTRY = {
         "description": "根据首帧图片生成视频",
         "executor": "video_executor"
     },
-    # 通用工具
+    # 状态查询工具
     "get_task_status": {
         "name": "查询任务状态",
         "description": "查询异步任务的执行状态",
-        "executor": "general_executor"
-    },
-    "update_global_config": {
-        "name": "更新全局配置",
-        "description": "更新系统全局配置参数",
-        "executor": "general_executor"
+        "executor": "status_checker"
     },
 }
 
@@ -96,7 +91,7 @@ TOOL_UNAVAILABLE_PROMPT = """你是一个友好的助手。用户想要完成一
 - 语气友好、简洁
 - 不要道歉太多次
 
-任务描述: {task_des.cription}
+任务描述: {task_description}
 执行者类型: {executor_type}
 需要的工具类型: {suggested_tools}
 
@@ -440,34 +435,34 @@ def create_video_executor_node(
 
 
 # ============================================================
-# 通用执行者
+# 状态查询执行者
 # ============================================================
 
-def create_general_executor_node(
+def create_status_checker_node(
     llm: BaseChatModel,
     tools: List[BaseTool]
 ):
     """
-    创建 GeneralExecutor 节点 (支持动态工具配置)
+    创建 StatusChecker 节点 (支持动态工具配置)
     
     Args:
         llm: 语言模型
         tools: 所有可用工具列表 (会根据 state.EXECUTOR_TOOLS 过滤)
         
     Returns:
-        general_executor 节点函数
+        status_checker 节点函数
     """
     
-    def general_executor_node(state: AgentState) -> Command[Literal["supervisor", "__end__"]]:
+    def status_checker_node(state: AgentState) -> Command[Literal["supervisor", "__end__"]]:
         """
-        通用执行者节点：执行状态查询等任务
+        状态查询节点：查询任务执行状态
         
         安全校验：执行前检查是否有可用工具，没有则直接结束
         """
-        logger.info("GeneralExecutor 开始执行")
+        logger.info("StatusChecker 开始执行")
         
         # 动态获取可用工具 (从 state.EXECUTOR_TOOLS 配置)
-        general_tools = _get_available_tools(tools, "general_executor", state)
+        checker_tools = _get_available_tools(tools, "status_checker", state)
         
         # ============================================================
         # 安全校验：检查是否有可用工具
@@ -476,30 +471,30 @@ def create_general_executor_node(
         task_description = current_step.get("description", "") if current_step else ""
         
         is_available, error_message = _check_tools_available(
-            general_tools, "general_executor", llm, task_description
+            checker_tools, "status_checker", llm, task_description
         )
         
         if not is_available:
-            logger.warning("GeneralExecutor 没有可用工具，结束执行")
+            logger.warning("StatusChecker 没有可用工具，结束执行")
             return Command(
                 goto="__end__",
                 update={
-                    "messages": [AIMessage(content=error_message, name="general_executor")],
+                    "messages": [AIMessage(content=error_message, name="status_checker")],
                 }
             )
         
         # 动态绑定工具到 LLM
-        llm_with_tools = llm.bind_tools(general_tools)
+        llm_with_tools = llm.bind_tools(checker_tools)
         
         # 获取当前步骤信息
         if not current_step:
             logger.error("无法获取当前步骤")
-            return _create_error_result(state, "general_executor", "无法获取当前步骤")
+            return _create_error_result(state, "status_checker", "无法获取当前步骤")
         
         logger.info(f"执行步骤: {current_step.get('title', 'Unknown')}")
         
         # 构建执行提示词
-        system_prompt = get_executor_prompt("general_executor")
+        system_prompt = get_executor_prompt("status_checker")
         
         # 构建任务消息
         task_description = current_step.get("description", "")
@@ -521,10 +516,10 @@ def create_general_executor_node(
             
             # 检查是否有工具调用
             if hasattr(response, "tool_calls") and response.tool_calls:
-                tool_result = _execute_tools(response, general_tools)
+                tool_result = _execute_tools(response, checker_tools)
                 return _create_success_result(
                     state,
-                    "general_executor",
+                    "status_checker",
                     None,
                     tool_result.get("summary", "任务已完成")
                 )
@@ -532,16 +527,22 @@ def create_general_executor_node(
                 content = response.content if hasattr(response, "content") else str(response)
                 return _create_success_result(
                     state,
-                    "general_executor",
+                    "status_checker",
                     None,
                     content[:200]
                 )
                 
         except Exception as e:
-            logger.error(f"GeneralExecutor 执行失败: {e}")
-            return _create_error_result(state, "general_executor", str(e))
+            logger.error(f"StatusChecker 执行失败: {e}")
+            return _create_error_result(state, "status_checker", str(e))
     
-    return general_executor_node
+    return status_checker_node
+
+
+# 保持向后兼容
+def create_general_executor_node(llm: BaseChatModel, tools: List[BaseTool]):
+    """向后兼容别名，请使用 create_status_checker_node"""
+    return create_status_checker_node(llm, tools)
 
 
 # ============================================================

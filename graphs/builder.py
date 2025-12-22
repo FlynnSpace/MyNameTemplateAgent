@@ -24,7 +24,7 @@ from nodes.supervisor import create_supervisor_node
 from nodes.executors import (
     create_image_executor_node,
     create_video_executor_node,
-    create_general_executor_node,
+    create_status_checker_node,
 )
 from nodes.reporter import create_reporter_node
 
@@ -126,7 +126,7 @@ def create_planner_supervisor_graph(
     - Coordinator: 入口协调，判断是否需要规划
     - Planner: 生成执行计划
     - Supervisor: 调度执行者
-    - Executors: 执行具体任务 (image/video/general)
+    - Executors: 执行具体任务 (image/video/status_checker)
     - Reporter: 生成最终报告
     
     工作流:
@@ -161,11 +161,11 @@ def create_planner_supervisor_graph(
     # Executor 节点
     image_executor_node = create_image_executor_node(llm, tools)
     video_executor_node = create_video_executor_node(llm, tools)
-    general_executor_node = create_general_executor_node(llm, tools)
+    status_checker_node = create_status_checker_node(llm, tools)
     
     workflow.add_node("image_executor", image_executor_node)
     workflow.add_node("video_executor", video_executor_node)
-    workflow.add_node("general_executor", general_executor_node)
+    workflow.add_node("status_checker", status_checker_node)
     
     # Reporter 节点
     reporter_node = create_reporter_node(llm)
@@ -249,7 +249,7 @@ def create_hybrid_graph(
     # Executors
     workflow.add_node("image_executor", create_image_executor_node(llm, tools))
     workflow.add_node("video_executor", create_video_executor_node(llm, tools))
-    workflow.add_node("general_executor", create_general_executor_node(llm, tools))
+    workflow.add_node("status_checker", create_status_checker_node(llm, tools))
     
     # Reporter
     workflow.add_node("reporter", create_reporter_node(llm))

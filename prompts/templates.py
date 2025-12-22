@@ -210,7 +210,7 @@ def get_planner_prompt(team_members: list[str] | None = None) -> str:
         完整的 Planner 提示词
     """
     if team_members is None:
-        team_members = ["image_executor", "video_executor", "general_executor", "reporter"]
+        team_members = ["image_executor", "video_executor", "status_checker", "reporter"]
     
     return apply_prompt_template_str("planner", {
         "TEAM_MEMBERS": ", ".join(team_members)
@@ -231,7 +231,7 @@ def get_supervisor_prompt(team_members: list[str] | None = None) -> str:
         Supervisor 从 messages 中获取计划和执行历史，不需要额外参数
     """
     if team_members is None:
-        team_members = ["image_executor", "video_executor", "general_executor", "reporter"]
+        team_members = ["image_executor", "video_executor", "status_checker", "reporter"]
     
     return apply_prompt_template_str("supervisor", {
         "TEAM_MEMBERS": ", ".join(team_members),
@@ -263,12 +263,12 @@ def get_executor_prompt(executor_type: str) -> str:
     获取指定执行者的完整提示词 (字符串格式)
     
     Args:
-        executor_type: 执行者类型 (image_executor, video_executor, general_executor)
+        executor_type: 执行者类型 (image_executor, video_executor, status_checker)
         
     Returns:
         完整的执行者提示词
     """
-    valid_executors = ["image_executor", "video_executor", "general_executor"]
+    valid_executors = ["image_executor", "video_executor", "status_checker"]
     if executor_type not in valid_executors:
         raise ValueError(f"Invalid executor type: {executor_type}. Must be one of {valid_executors}")
     
