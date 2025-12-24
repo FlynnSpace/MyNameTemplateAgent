@@ -312,10 +312,10 @@ def create_image_executor_node(
                     tool_result.get("summary", "图像任务已提交")
                 )
             else:
-                # 没有工具调用
+                # 没有工具调用 - 使用 LLM 的详细解释作为错误信息
                 content = response.content if hasattr(response, "content") else str(response)
                 logger.warning(f"ImageExecutor 没有调用工具: {content}")
-                return _create_error_result(state, "image_executor", "没有执行工具调用")
+                return _create_error_result(state, "image_executor", content)
                 
         except Exception as e:
             logger.error(f"ImageExecutor 执行失败: {e}")
@@ -422,10 +422,10 @@ def create_video_executor_node(
                     tool_result.get("summary", "视频任务已提交")
                 )
             else:
-                # 没有工具调用
+                # 没有工具调用 - 使用 LLM 的详细解释作为错误信息
                 content = response.content if hasattr(response, "content") else str(response)
                 logger.warning(f"VideoExecutor 没有调用工具: {content}")
-                return _create_error_result(state, "video_executor", "没有执行工具调用")
+                return _create_error_result(state, "video_executor", content)
                 
         except Exception as e:
             logger.error(f"VideoExecutor 执行失败: {e}")
