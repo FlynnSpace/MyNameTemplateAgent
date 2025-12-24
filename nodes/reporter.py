@@ -30,7 +30,7 @@ def create_reporter_node(llm: BaseChatModel):
         reporter 节点函数
     """
     
-    def reporter_node(state: AgentState) -> Command[Literal["supervisor"]]:
+    def reporter_node(state: AgentState) -> Command[Literal["__end__"]]:
         """
         汇报者节点：根据执行结果生成最终报告
         
@@ -38,7 +38,7 @@ def create_reporter_node(llm: BaseChatModel):
         - 使用 apply_prompt_template 构建提示词
         - 调用 LLM 生成报告
         - 使用 RESPONSE_FORMAT 格式化输出
-        - 返回到 supervisor
+        - 直接结束工作流
         """
         logger.info("Reporter 开始生成最终报告")
         
@@ -71,7 +71,7 @@ def create_reporter_node(llm: BaseChatModel):
                 # 额外存储干净的报告内容，供前端直接使用
                 "final_report": response.content,
             },
-            goto="supervisor",
+            goto="__end__",  # Reporter 是工作流最后一步，直接结束
         )
     
     return reporter_node
