@@ -1,9 +1,18 @@
 """
 LangGraph SDK 客户端封装
 通过 SDK 调用 langgraph dev 服务，复用其持久化和流式功能
+
+流式返回设计 (对标 planning_agent):
+- event 统一为 "message"
+- 数据统一包在 data 内部
+- planner: thought 字段，逐字流式返回
+- executor: tool_name + tool_result 字段，一次性返回
+- reporter/coordinator: delta 字段，逐字流式返回
 """
 
 import os
+import json
+import asyncio
 from typing import AsyncGenerator
 from dotenv import load_dotenv
 from langgraph_sdk import get_client
@@ -24,6 +33,9 @@ AGENT_MAPPING = {
     "planner_supervisor": "planner_supervisor_agent",
 }
 
+# 流式输出延迟 (秒)，设为 0 则无延迟
+STREAM_DELAY = float(os.getenv("STREAM_DELAY", "0.02"))
+
 
 def get_langgraph_client():
     """获取 LangGraph SDK 客户端"""
@@ -35,15 +47,7 @@ def get_langgraph_client():
 # ============================================================
 
 async def create_thread(metadata: dict | None = None) -> dict:
-    """
-    创建新的 Thread
-    
-    Args:
-        metadata: 可选的元数据
-        
-    Returns:
-        包含 thread_id 的字典
-    """
+    """创建新的 Thread"""
     client = get_langgraph_client()
     thread = await client.threads.create(metadata=metadata or {})
     logger.info(f"创建新 Thread: {thread['thread_id']}")
@@ -51,15 +55,7 @@ async def create_thread(metadata: dict | None = None) -> dict:
 
 
 async def get_thread(thread_id: str) -> dict | None:
-    """
-    获取 Thread 信息
-    
-    Args:
-        thread_id: Thread ID
-        
-    Returns:
-        Thread 信息，不存在则返回 None
-    """
+    """获取 Thread 信息，不存在则返回 None"""
     client = get_langgraph_client()
     try:
         thread = await client.threads.get(thread_id)
@@ -69,27 +65,33 @@ async def get_thread(thread_id: str) -> dict | None:
         return None
 
 
-async def get_thread_state(thread_id: str) -> dict | None:
+# ============================================================
+# 流式输出辅助函数
+# ============================================================
+
+async def stream_text(text: str, field: str, delay: float = STREAM_DELAY):
     """
-    获取 Thread 状态（包含历史消息等）
+    逐字流式输出文本
     
     Args:
-        thread_id: Thread ID
+        text: 要输出的文本
+        field: 字段名 ("thought" 或 "delta")
+        delay: 每个字符之间的延迟 (秒)
         
-    Returns:
-        Thread 状态
+    Yields:
+        {"event": "message", "data": {field: char}}
     """
-    client = get_langgraph_client()
-    try:
-        state = await client.threads.get_state(thread_id)
-        return state
-    except Exception as e:
-        logger.warning(f"获取 Thread 状态失败: {e}")
-        return None
+    for char in text:
+        yield {
+            "event": "message",
+            "data": {field: char}
+        }
+        if delay > 0:
+            await asyncio.sleep(delay)
 
 
 # ============================================================
-# 简洁流式对话 (核心接口)
+# 流式对话 (核心接口)
 # ============================================================
 
 async def chat_stream_simple(
@@ -99,28 +101,22 @@ async def chat_stream_simple(
     deep_thinking: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """
-    简洁流式对话 - 只返回关键信息
+    简洁流式对话 - 对标 planning_agent 设计
     
-    使用 updates 模式，过滤只保留:
-    - Coordinator 的直接回复 (简单问题)
-    - Planner 的 thought (复杂任务)
-    - Executor 的执行进度
-    - Reporter 的 final_report
+    返回格式:
+    - event: 统一为 "message"
+    - data: 包含具体字段
+    
+    字段说明:
+    - planner: {"thought": "..."} - 逐字流式返回
+    - executor: {"tool_name": "...", "tool_result": "..."} - 一次性返回
+    - reporter/coordinator: {"delta": "..."} - 逐字流式返回
     
     Args:
         message: 用户消息
         thread_id: Thread ID（可选）
         agent_type: Agent 类型
         deep_thinking: 是否启用深度思考模式
-        
-    Yields:
-        简洁的流式事件:
-        - start: 开始，包含 thread_id
-        - response: Coordinator 直接回复
-        - planning: Planner 的思考过程
-        - executing: 执行进度
-        - report: Reporter 的最终报告
-        - end: 结束，包含汇总信息
     """
     client = get_langgraph_client()
     
@@ -137,7 +133,7 @@ async def chat_stream_simple(
             thread = await create_thread()
             thread_id = thread["thread_id"]
     
-    logger.info(f"简洁流式对话: thread_id={thread_id}, assistant={assistant_id}")
+    logger.info(f"流式对话: thread_id={thread_id}, assistant={assistant_id}")
     
     # 构建输入
     input_data = {
@@ -147,14 +143,15 @@ async def chat_stream_simple(
     
     # 发送开始事件
     yield {
-        "event": "start",
-        "thread_id": thread_id,
+        "event": "message",
+        "data": {
+            "type": "start",
+            "thread_id": thread_id,
+        }
     }
     
     # 收集执行信息
-    task_ids = []
     step_results = []
-    plan_title = ""
     
     try:
         # 使用 updates 模式流式调用
@@ -176,148 +173,124 @@ async def chat_stream_simple(
                     continue
                 
                 # ============================================================
-                # Coordinator 节点 - 直接回复 (简单问题)
+                # Coordinator 节点 - 逐字流式返回 (简单问题)
                 # ============================================================
                 if node_name == "coordinator":
                     messages = node_data.get("messages", [])
                     for msg in messages:
-                        # 检查是否是 AI 回复
                         if msg.get("type") == "ai" and msg.get("content"):
                             content = msg.get("content", "")
-                            # 排除 handoff_to_planner 的情况
                             if "handoff_to_planner" not in content:
-                                yield {
-                                    "event": "response",
-                                    "content": content,
-                                    "from": "coordinator",
-                                }
+                                # 逐字流式返回
+                                async for event in stream_text(content, "delta"):
+                                    yield event
                 
                 # ============================================================
-                # Planner 节点 - 返回 thought
+                # Planner 节点 - 逐字流式返回 thought + steps
                 # ============================================================
                 elif node_name == "planner":
                     thought = node_data.get("plan_thought", "")
-                    title = node_data.get("plan_title", "")
-                    total_steps = node_data.get("total_steps", 0)
-                    plan_title = title
+                    full_plan = node_data.get("full_plan", "")
                     
-                    if thought:
-                        yield {
-                            "event": "planning",
-                            "thought": thought,
-                            "title": title,
-                            "total_steps": total_steps,
-                        }
+                    if thought or full_plan:
+                        # 构建流式内容
+                        thought_content = _format_planner_output(thought, full_plan)
+                        
+                        # 逐字流式返回
+                        async for event in stream_text(thought_content, "thought"):
+                            yield event
                 
                 # ============================================================
-                # Executor 节点 - 返回执行进度
+                # Executor 节点 - 一次性返回 tool_name + tool_result
                 # ============================================================
-                elif node_name in ["image_executor", "video_executor", "general_executor"]:
+                elif node_name in ["image_executor", "video_executor", "status_checker"]:
                     new_results = node_data.get("step_results", [])
                     if new_results and len(new_results) > len(step_results):
-                        # 只发送新增的结果
                         latest = new_results[-1]
                         step_results = new_results
                         
-                        task_id = latest.get("task_id")
-                        if task_id:
-                            task_ids.append(task_id)
+                        # 获取实际调用的工具名称列表
+                        tool_names = latest.get("tool_names", [])
+                        # 使用第一个工具名称作为 tool_name（通常只有一个）
+                        tool_name = tool_names[0] if tool_names else node_name
                         
-                        yield {
-                            "event": "executing",
-                            "executor": latest.get("executor", node_name),
+                        # 构建 tool_result JSON
+                        tool_result = {
                             "step_index": latest.get("step_index", 0),
                             "status": latest.get("status", "unknown"),
-                            "task_id": task_id,
+                            "task_id": latest.get("task_id"),
                             "summary": latest.get("summary", ""),
+                        }
+                        
+                        yield {
+                            "event": "message",
+                            "data": {
+                                "tool_name": tool_name,
+                                "tool_result": json.dumps(tool_result, ensure_ascii=False),
+                            }
                         }
                 
                 # ============================================================
-                # Reporter 节点 - 返回 final_report
+                # Reporter 节点 - 逐字流式返回 delta
                 # ============================================================
                 elif node_name == "reporter":
                     final_report = node_data.get("final_report", "")
                     
                     if final_report:
-                        yield {
-                            "event": "report",
-                            "content": final_report,
-                        }
+                        # 逐字流式返回
+                        async for event in stream_text(final_report, "delta"):
+                            yield event
         
-        # 发送结束事件，包含汇总信息
+        # 发送结束事件
         yield {
-            "event": "end",
-            "thread_id": thread_id,
-            "summary": {
-                "title": plan_title,
-                "task_ids": list(set(task_ids)),
-                "total_steps": len(step_results),
+            "event": "message",
+            "data": {
+                "type": "end",
+                "thread_id": thread_id,
             }
         }
         
     except Exception as e:
-        logger.error(f"简洁流式调用失败: {e}", exc_info=True)
+        logger.error(f"流式调用失败: {e}", exc_info=True)
         yield {
-            "event": "error",
-            "error": str(e),
+            "event": "message",
+            "data": {
+                "type": "error",
+                "error": str(e),
+            }
         }
 
 
-# ============================================================
-# 历史记录查询
-# ============================================================
-
-async def get_thread_history(thread_id: str) -> list[dict]:
+def _format_planner_output(thought: str, full_plan: str) -> str:
     """
-    获取 Thread 的历史消息
+    格式化 Planner 输出
     
-    Args:
-        thread_id: Thread ID
-        
-    Returns:
-        消息列表
-    """
-    state = await get_thread_state(thread_id)
-    if state and state.get("values"):
-        return state["values"].get("messages", [])
-    return []
-
-
-async def list_threads(limit: int = 20, offset: int = 0) -> list[dict]:
-    """
-    列出所有 Threads
+    格式:
+    Thought: {thought}
     
-    Args:
-        limit: 返回数量
-        offset: 偏移量
-        
-    Returns:
-        Thread 列表
-    """
-    client = get_langgraph_client()
-    try:
-        threads = await client.threads.list(limit=limit, offset=offset)
-        return list(threads)
-    except Exception as e:
-        logger.error(f"列出 Threads 失败: {e}")
-        return []
-
-
-async def delete_thread(thread_id: str) -> bool:
-    """
-    删除 Thread
+    1. {step 1.title}
     
-    Args:
-        thread_id: Thread ID
-        
-    Returns:
-        是否成功
+    2. {step 2.title}
     """
-    client = get_langgraph_client()
-    try:
-        await client.threads.delete(thread_id)
-        logger.info(f"删除 Thread: {thread_id}")
-        return True
-    except Exception as e:
-        logger.error(f"删除 Thread 失败: {e}")
-        return False
+    lines = []
+    
+    # 添加 Thought
+    if thought:
+        lines.append(f"Thought: {thought}")
+        lines.append("")  # 空行
+    
+    # 解析 steps
+    if full_plan:
+        try:
+            plan = json.loads(full_plan)
+            steps = plan.get("steps", [])
+            
+            for i, step in enumerate(steps, 1):
+                title = step.get("title", f"步骤 {i}")
+                lines.append(f"{i}. {title}")
+                lines.append("")  # 空行
+                
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    return "\n".join(lines)

@@ -309,7 +309,8 @@ def create_image_executor_node(
                     state, 
                     "image_executor",
                     tool_result.get("task_id"),
-                    tool_result.get("summary", "图像任务已提交")
+                    tool_result.get("summary", "图像任务已提交"),
+                    tool_result.get("tool_names", [])
                 )
             else:
                 # 没有工具调用 - 使用 LLM 的详细解释作为错误信息
@@ -419,7 +420,8 @@ def create_video_executor_node(
                     state,
                     "video_executor",
                     tool_result.get("task_id"),
-                    tool_result.get("summary", "视频任务已提交")
+                    tool_result.get("summary", "视频任务已提交"),
+                    tool_result.get("tool_names", [])
                 )
             else:
                 # 没有工具调用 - 使用 LLM 的详细解释作为错误信息
@@ -521,7 +523,8 @@ def create_status_checker_node(
                     state,
                     "status_checker",
                     None,
-                    tool_result.get("summary", "任务已完成")
+                    tool_result.get("summary", "任务已完成"),
+                    tool_result.get("tool_names", [])
                 )
             else:
                 content = response.content if hasattr(response, "content") else str(response)
@@ -529,7 +532,8 @@ def create_status_checker_node(
                     state,
                     "status_checker",
                     None,
-                    content[:200]
+                    content[:200],
+                    []  # 没有工具调用
                 )
                 
         except Exception as e:
@@ -685,8 +689,12 @@ def _execute_tools(response, tools: List[BaseTool]) -> dict:
     
     summary = f"执行了{count_text}工具调用：\n\n" + "\n\n".join(tool_details)
     
+    # 提取所有调用的工具名称
+    tool_names = [r.get("tool", "unknown") for r in results]
+    
     return {
         "task_id": task_id,
+        "tool_names": tool_names,  # 新增：实际调用的工具名称列表
         "summary": summary,
         "details": results
     }
@@ -696,7 +704,8 @@ def _create_success_result(
     state: AgentState,
     executor: str,
     task_id: str | None,
-    summary: str
+    summary: str,
+    tool_names: list[str] | None = None
 ) -> Command[Literal["supervisor"]]:
     """
     创建成功结果并返回到 supervisor (对标 LangManus)
@@ -714,6 +723,7 @@ def _create_success_result(
         "status": "success",
         "task_id": task_id,
         "result_url": None,  # 异步任务需要后续查询
+        "tool_names": tool_names or [],  # 新增：实际调用的工具名称列表
         "summary": summary
     })
     
