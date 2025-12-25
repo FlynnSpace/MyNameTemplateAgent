@@ -1,18 +1,15 @@
 """
 LangGraph SDK 客户端封装
-通过 SDK 调用 langgraph dev 服务，复用其持久化和流式功能
+通过 SDK 调用 langgraph dev 服务，使用 custom stream mode 透传节点发送的流式数据
 
-流式返回设计 (对标 planning_agent):
-- event 统一为 "message"
-- 数据统一包在 data 内部
-- planner: thought 字段，逐字流式返回
-- executor: tool_name + tool_result 字段，一次性返回
-- reporter/coordinator: delta 字段，逐字流式返回
+流式返回设计:
+- 使用 stream_mode="custom" 接收节点主动发送的数据
+- 节点直接发送格式化的数据：delta/thought/tool_name+tool_result
+- 客户端只需透传，无需二次处理
 """
 
 import os
-import json
-import asyncio
+import uuid
 from typing import AsyncGenerator
 from dotenv import load_dotenv
 from langgraph_sdk import get_client
@@ -32,9 +29,6 @@ AGENT_MAPPING = {
     "react": "my_name_suggestion_chat_agent",
     "planner_supervisor": "planner_supervisor_agent",
 }
-
-# 流式输出延迟 (秒)，设为 0 则无延迟
-STREAM_DELAY = float(os.getenv("STREAM_DELAY", "0.02"))
 
 
 def get_langgraph_client():
@@ -66,32 +60,7 @@ async def get_thread(thread_id: str) -> dict | None:
 
 
 # ============================================================
-# 流式输出辅助函数
-# ============================================================
-
-async def stream_text(text: str, field: str, delay: float = STREAM_DELAY):
-    """
-    逐字流式输出文本
-    
-    Args:
-        text: 要输出的文本
-        field: 字段名 ("thought" 或 "delta")
-        delay: 每个字符之间的延迟 (秒)
-        
-    Yields:
-        {"event": "message", "data": {field: char}}
-    """
-    for char in text:
-        yield {
-            "event": "message",
-            "data": {field: char}
-        }
-        if delay > 0:
-            await asyncio.sleep(delay)
-
-
-# ============================================================
-# 流式对话 (核心接口)
+# 流式对话 (核心接口) - 使用 custom stream mode
 # ============================================================
 
 async def chat_stream_simple(
@@ -101,16 +70,14 @@ async def chat_stream_simple(
     deep_thinking: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """
-    简洁流式对话 - 对标 planning_agent 设计
+    简洁流式对话 - 使用 custom stream mode
     
-    返回格式:
-    - event: 统一为 "message"
-    - data: 包含具体字段
+    节点直接发送格式化的数据：
+    - coordinator/reporter: {"delta": "..."}
+    - planner: {"thought": "..."}
+    - executors: {"tool_name": "...", "tool_result": "..."}
     
-    字段说明:
-    - planner: {"thought": "..."} - 逐字流式返回
-    - executor: {"tool_name": "...", "tool_result": "..."} - 一次性返回
-    - reporter/coordinator: {"delta": "..."} - 逐字流式返回
+    客户端只需透传，包装成 SSE 格式返回。
     
     Args:
         message: 用户消息
@@ -121,7 +88,16 @@ async def chat_stream_simple(
     client = get_langgraph_client()
     
     # 获取对应的 assistant_id
-    assistant_id = AGENT_MAPPING.get(agent_type, "planner_supervisor_agent")
+    assistant_id = AGENT_MAPPING.get(agent_type)
+    if not assistant_id:
+        yield {
+            "event": "message",
+            "data": {
+                "type": "error",
+                "error": f"Unknown agent_type: {agent_type}, expected: 'react' or 'planner_supervisor'",
+            }
+        }
+        return
     
     # 如果没有 thread_id，创建新的
     if not thread_id:
@@ -150,96 +126,22 @@ async def chat_stream_simple(
         }
     }
     
-    # 收集执行信息
-    step_results = []
-    
     try:
-        # 使用 updates 模式流式调用
+        # 使用 custom 模式流式调用 - 节点主动发送的数据会通过这里返回
         async for chunk in client.runs.stream(
             thread_id=thread_id,
             assistant_id=assistant_id,
             input=input_data,
-            stream_mode="updates",
+            stream_mode="custom",  # 只使用 custom 模式
         ):
-            event_type = chunk.event
-            data = chunk.data
-            
-            if event_type != "updates" or not data:
-                continue
-            
-            # 处理各节点的更新
-            for node_name, node_data in data.items():
-                if node_data is None:
-                    continue
-                
-                # ============================================================
-                # Coordinator 节点 - 逐字流式返回 (简单问题)
-                # ============================================================
-                if node_name == "coordinator":
-                    messages = node_data.get("messages", [])
-                    for msg in messages:
-                        if msg.get("type") == "ai" and msg.get("content"):
-                            content = msg.get("content", "")
-                            if "handoff_to_planner" not in content:
-                                # 逐字流式返回
-                                async for event in stream_text(content, "delta"):
-                                    yield event
-                
-                # ============================================================
-                # Planner 节点 - 逐字流式返回 thought + steps
-                # ============================================================
-                elif node_name == "planner":
-                    thought = node_data.get("plan_thought", "")
-                    full_plan = node_data.get("full_plan", "")
-                    
-                    if thought or full_plan:
-                        # 构建流式内容
-                        thought_content = _format_planner_output(thought, full_plan)
-                        
-                        # 逐字流式返回
-                        async for event in stream_text(thought_content, "thought"):
-                            yield event
-                
-                # ============================================================
-                # Executor 节点 - 一次性返回 tool_name + tool_result
-                # ============================================================
-                elif node_name in ["image_executor", "video_executor", "status_checker"]:
-                    new_results = node_data.get("step_results", [])
-                    if new_results and len(new_results) > len(step_results):
-                        latest = new_results[-1]
-                        step_results = new_results
-                        
-                        # 获取实际调用的工具名称列表
-                        tool_names = latest.get("tool_names", [])
-                        # 使用第一个工具名称作为 tool_name（通常只有一个）
-                        tool_name = tool_names[0] if tool_names else node_name
-                        
-                        # 构建 tool_result JSON
-                        tool_result = {
-                            "step_index": latest.get("step_index", 0),
-                            "status": latest.get("status", "unknown"),
-                            "task_id": latest.get("task_id"),
-                            "summary": latest.get("summary", ""),
-                        }
-                        
-                        yield {
-                            "event": "message",
-                            "data": {
-                                "tool_name": tool_name,
-                                "tool_result": json.dumps(tool_result, ensure_ascii=False),
-                            }
-                        }
-                
-                # ============================================================
-                # Reporter 节点 - 逐字流式返回 delta
-                # ============================================================
-                elif node_name == "reporter":
-                    final_report = node_data.get("final_report", "")
-                    
-                    if final_report:
-                        # 逐字流式返回
-                        async for event in stream_text(final_report, "delta"):
-                            yield event
+            # chunk.event 应该是 "custom"
+            # chunk.data 是节点通过 writer() 发送的数据
+            if chunk.event == "custom" and chunk.data:
+                # 直接透传节点发送的数据
+                yield {
+                    "event": "message",
+                    "data": chunk.data,
+                }
         
         # 发送结束事件
         yield {
@@ -259,38 +161,3 @@ async def chat_stream_simple(
                 "error": str(e),
             }
         }
-
-
-def _format_planner_output(thought: str, full_plan: str) -> str:
-    """
-    格式化 Planner 输出
-    
-    格式:
-    Thought: {thought}
-    
-    1. {step 1.title}
-    
-    2. {step 2.title}
-    """
-    lines = []
-    
-    # 添加 Thought
-    if thought:
-        lines.append(f"Thought: {thought}")
-        lines.append("")  # 空行
-    
-    # 解析 steps
-    if full_plan:
-        try:
-            plan = json.loads(full_plan)
-            steps = plan.get("steps", [])
-            
-            for i, step in enumerate(steps, 1):
-                title = step.get("title", f"步骤 {i}")
-                lines.append(f"{i}. {title}")
-                lines.append("")  # 空行
-                
-        except (json.JSONDecodeError, TypeError):
-            pass
-    
-    return "\n".join(lines)

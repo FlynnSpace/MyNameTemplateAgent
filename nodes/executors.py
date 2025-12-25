@@ -15,6 +15,9 @@ Executors 节点
 - 执行前检查是否有可用工具
 - 如果没有，使用 LLM 生成友好的错误消息
 - 告知用户需要添加哪些工具
+
+流式输出：
+- 使用 get_stream_writer() 发送 {"tool_name": "...", "tool_result": "..."} 格式数据
 """
 
 import json
@@ -25,6 +28,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.types import Command
 from langgraph.prebuilt import ToolNode
+from langgraph.config import get_stream_writer
 
 from state.schemas import AgentState, DEFAULT_EXECUTOR_TOOLS
 from prompts.templates import get_executor_prompt, RESPONSE_FORMAT
@@ -712,6 +716,8 @@ def _create_success_result(
     
     关键：使用 RESPONSE_FORMAT 格式化消息，包含 "Please execute the next step." 提示
     这样 Supervisor 可以清楚地知道当前执行者已完成，需要执行下一步
+    
+    流式输出：发送 {"tool_name": "...", "tool_result": "..."} 格式
     """
     current_index = state.get("current_step_index", 0)
     step_results = state.get("step_results", []).copy()
@@ -728,6 +734,21 @@ def _create_success_result(
     })
     
     logger.info(f"步骤 {current_index} 执行成功: {summary}")
+    
+    # 流式发送工具执行结果
+    writer = get_stream_writer()
+    tool_result = {
+        "step_index": current_index,
+        "status": "success",
+        "task_id": task_id,
+        "summary": summary,
+    }
+    # 使用第一个工具名称作为 tool_name（通常只有一个）
+    tool_name = tool_names[0] if tool_names else executor
+    writer({
+        "tool_name": tool_name,
+        "tool_result": json.dumps(tool_result, ensure_ascii=False),
+    })
     
     # 对标 LangManus: 使用 RESPONSE_FORMAT 格式化消息
     # RESPONSE_FORMAT 包含 "Please execute the next step." 提示

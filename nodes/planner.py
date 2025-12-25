@@ -6,6 +6,9 @@ Planner 节点
 - 分析用户需求，生成高层执行计划
 - 只关注 executor 层面的规划
 - 具体的 tool 可用性由 Executor 层负责校验
+
+流式输出：
+- 使用 get_stream_writer() 发送 {"thought": "..."} 格式数据
 """
 
 import json
@@ -13,6 +16,7 @@ from typing import Literal
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.types import Command
+from langgraph.config import get_stream_writer
 
 from state.schemas import AgentState, ExecutionPlan, TEAM_MEMBERS as DEFAULT_TEAM_MEMBERS
 from prompts.templates import apply_prompt_template
@@ -71,8 +75,13 @@ def create_planner_node(
         
         输入: 用户消息
         输出: JSON 格式的执行计划
+        
+        流式输出：解析 JSON 后，发送 thought + steps 内容
         """
         logger.info("Planner 开始生成执行计划")
+        
+        # 获取流式写入器
+        writer = get_stream_writer()
         
         # 获取提示词
         messages = apply_prompt_template("planner", state)
@@ -83,7 +92,7 @@ def create_planner_node(
             logger.info("启用深度思考模式，使用 reasoning LLM")
             use_llm = reasoning_llm
         
-        # 调用 LLM 生成计划
+        # 调用 LLM 生成计划（不流式，因为需要完整 JSON）
         response = use_llm.invoke(messages)
         response_content = response.content if hasattr(response, "content") else str(response)
         
@@ -100,6 +109,20 @@ def create_planner_node(
             thought = plan_dict.get("thought", "")
             title = plan_dict.get("title", "创作任务")
             steps = plan_dict.get("steps", [])
+            
+            # 流式发送思考过程和步骤
+            # 1. 发送 thought
+            if thought:
+                thought_text = f"Thought: {thought}\n\n"
+                for char in thought_text:
+                    writer({"thought": char})
+            
+            # 2. 发送步骤列表
+            for i, step in enumerate(steps, 1):
+                step_title = step.get("title", f"步骤 {i}")
+                step_text = f"{i}. {step_title}\n"
+                for char in step_text:
+                    writer({"thought": char})
             
             logger.info(f"Planner 生成计划: {title}, 共 {len(steps)} 步")
             

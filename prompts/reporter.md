@@ -47,6 +47,7 @@ CURRENT_TIME: <<CURRENT_TIME>>
 - ❌ 不要提及内部角色（reporter、executor、supervisor）
 - ❌ 不要描述图片/视频内容
 - ❌ 不要给出建议或替代方案
+- ❌ 不要暴漏taskID
 
 # 示例
 

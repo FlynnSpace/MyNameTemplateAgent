@@ -5,12 +5,17 @@ Coordinator 节点
 对标 LangManus 实现：
 - 使用 LLM 判断是否需要规划
 - 检查响应中是否包含 handoff_to_planner
+
+流式输出：
+- 使用 get_stream_writer() 发送 {"delta": "..."} 格式数据
+- 发送 {"type": "start"} 事件标记开始
 """
 
 from typing import Literal
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
 from langgraph.types import Command
+from langgraph.config import get_stream_writer, get_config
 
 from state.schemas import AgentState
 from prompts.templates import apply_prompt_template
@@ -39,15 +44,32 @@ def create_coordinator_node(llm: BaseChatModel):
         - 检查响应中是否包含 "handoff_to_planner"
         - 如果包含 → 转发给 planner
         - 否则 → 直接回复用户 → __end__
+        
+        流式输出：
+        - 发送 start 事件
+        - 发送 delta 数据
+        - 如果直接结束，发送 end 事件
         """
         logger.info("Coordinator 开始处理用户输入")
+        
+        # 获取流式写入器和配置
+        writer = get_stream_writer()
+        config = get_config()
+        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+        
+        # 发送开始事件
+        writer({"type": "start", "thread_id": thread_id})
         
         # 应用提示词模板 (对标 LangManus: apply_prompt_template)
         messages = apply_prompt_template("coordinator", state)
         
-        # 调用 LLM
-        response = llm.invoke(messages)
-        response_content = response.content if hasattr(response, "content") else str(response)
+        # 使用流式调用 LLM
+        response_content = ""
+        for chunk in llm.stream(messages):
+            chunk_content = chunk.content if hasattr(chunk, "content") else str(chunk)
+            if chunk_content:
+                response_content += chunk_content
+                # 流式发送 delta（只在非 handoff 时有意义，但先收集完整内容再判断）
         
         logger.debug(f"Current state messages: {state.get('messages', [])}")
         logger.debug(f"Coordinator 响应: {response_content}")
@@ -59,8 +81,14 @@ def create_coordinator_node(llm: BaseChatModel):
             logger.info("Coordinator handoff to planner")
             return Command(goto=goto)
         
-        # 直接回复用户
-        logger.info("Coordinator direct response")
+        # 直接回复用户 - 流式发送每个字符
+        logger.info("Coordinator direct response - streaming delta")
+        for char in response_content:
+            writer({"delta": char})
+        
+        # 直接结束时发送 end 事件
+        writer({"type": "end", "thread_id": thread_id})
+        
         return Command(
             goto=goto,
             update={
