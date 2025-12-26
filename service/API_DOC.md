@@ -188,3 +188,182 @@ eventSource.onmessage = (event) => {
 | `first_frame_to_video` | 首帧生成视频 |
 | `get_task_status` | 查询任务状态 |
 
+---
+
+## LangGraph SDK Custom Stream Mode
+
+> ⚠️ **重要**: 当前自定义 API 无法在 LangGraph Cloud 云端运行，如需流式返回请使用 SDK 的 Custom Mode。
+
+### 概述
+
+本项目使用 LangGraph SDK 的 `stream_mode="custom"` 模式实现流式返回。
+
+**核心机制**:
+- **节点端**: 使用 `get_stream_writer()` 主动发送数据
+- **客户端**: 透传节点发送的数据，无需二次处理
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LangGraph Server                          │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  coordinator / planner / executor / reporter         │    │
+│  │           │                                          │    │
+│  │           ▼                                          │    │
+│  │  writer = get_stream_writer()                        │    │
+│  │  writer({"delta": "你好"})                           │    │
+│  │  writer({"thought": "Thought: ..."})                 │    │
+│  │  writer({"tool_name": "...", "tool_result": "..."})  │    │
+│  └─────────────────────────────────────────────────────┘    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ stream_mode="custom"
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    LangGraph SDK Client                      │
+│  async for chunk in client.runs.stream(...):                 │
+│      if chunk.event == "custom":                             │
+│          yield chunk.data  # 直接透传                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 节点端发送数据
+
+各节点通过 `get_stream_writer()` 发送不同类型的数据：
+
+```python
+from langgraph.config import get_stream_writer
+
+def coordinator_node(state):
+    writer = get_stream_writer()
+    
+    # 发送开始事件
+    writer({"type": "start", "thread_id": thread_id})
+    
+    # 流式发送文本 (逐字)
+    for char in response_content:
+        writer({"delta": char})
+    
+    # 发送结束事件
+    writer({"type": "end", "thread_id": thread_id})
+
+
+def planner_node(state):
+    writer = get_stream_writer()
+    
+    # 发送思考过程 (逐字)
+    for char in thought_text:
+        writer({"thought": char})
+
+
+def executor_node(state):
+    writer = get_stream_writer()
+    
+    # 发送工具执行结果 (一次性)
+    writer({
+        "tool_name": "text_to_image",
+        "tool_result": json.dumps(result, ensure_ascii=False),
+    })
+```
+
+---
+
+### SDK 客户端调用
+
+使用 `langgraph-sdk` 调用时，指定 `stream_mode="custom"`:
+
+```python
+from langgraph_sdk import get_client
+
+client = get_client(url="http://localhost:2024")
+
+async for chunk in client.runs.stream(
+    thread_id=thread_id,
+    assistant_id="planner_supervisor_agent",
+    input={"messages": [{"role": "user", "content": "帮我生成一张图片"}]},
+    stream_mode="custom",  # 关键: 使用 custom 模式
+):
+    if chunk.event == "custom" and chunk.data:
+        # chunk.data 直接是节点发送的数据
+        print(chunk.data)
+        # 输出: {"delta": "你"} 或 {"thought": "..."} 或 {"tool_name": "...", ...}
+```
+
+---
+
+### 完整 SDK 调用示例
+
+```python
+import asyncio
+from langgraph_sdk import get_client
+
+async def chat_with_agent(message: str):
+    client = get_client(url="http://localhost:2024")
+    
+    # 创建 Thread
+    thread = await client.threads.create()
+    thread_id = thread["thread_id"]
+    
+    # 流式调用
+    full_content = ""
+    thinking_content = ""
+    
+    async for chunk in client.runs.stream(
+        thread_id=thread_id,
+        assistant_id="planner_supervisor_agent",
+        input={
+            "messages": [{"role": "user", "content": message}],
+            "deep_thinking_mode": False,
+        },
+        stream_mode="custom",
+    ):
+        if chunk.event == "custom" and chunk.data:
+            data = chunk.data
+            
+            if "delta" in data:
+                # Coordinator / Reporter 的文本回复
+                full_content += data["delta"]
+                print(data["delta"], end="", flush=True)
+            
+            elif "thought" in data:
+                # Planner 的思考过程
+                thinking_content += data["thought"]
+            
+            elif "tool_name" in data:
+                # Executor 的工具执行结果
+                print(f"\n🔧 {data['tool_name']}: {data['tool_result']}")
+            
+            elif data.get("type") == "start":
+                print(f"📍 开始对话: {data['thread_id']}")
+            
+            elif data.get("type") == "end":
+                print(f"\n✅ 对话结束")
+    
+    return full_content
+
+# 运行
+asyncio.run(chat_with_agent("帮我生成一张赛博朋克风格的城市图片"))
+```
+
+---
+
+### 可用的 Assistant ID
+
+| assistant_id | 说明 |
+|--------------|------|
+| `my_name_chat_agent` | ReAct 模式 (格式化输出) |
+| `my_name_suggestion_chat_agent` | ReAct 模式 (流式 + 建议) |
+| `custom_chat_agent` | ReAct 模式 (自定义创作) |
+| `planner_supervisor_agent` | Planner-Supervisor 模式 |
+
+---
+
+### 与 REST API 的对比
+
+| 特性 | REST API (`/api/chat/stream`) | SDK Custom Mode |
+|------|-------------------------------|-----------------|
+| 传输方式 | SSE (Server-Sent Events) | 异步迭代器 |
+| 部署要求 | 需要启动 FastAPI 服务 | 直接连接 LangGraph Server |
+| 云端支持 | ❌ 不支持 | ✅ 支持 |
+| 使用场景 | 浏览器前端 | Python 后端 / 脚本 |
+

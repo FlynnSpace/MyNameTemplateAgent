@@ -18,7 +18,44 @@ from . import langgraph_client
 
 app = FastAPI(
     title="LoopSkill Agent API",
-    description="AI 视频/图像创作助手 API 接口",
+    description="""
+AI 视频/图像创作助手 API 接口
+
+## 两种调用方式
+
+### 1. REST API (本接口)
+- 使用 SSE (Server-Sent Events) 流式返回
+- 适用于浏览器前端
+- ⚠️ **不支持 LangGraph Cloud 云端部署**
+
+### 2. LangGraph SDK Custom Mode (推荐)
+- 使用 `stream_mode="custom"` 直接连接 LangGraph Server
+- 适用于 Python 后端 / 脚本
+- ✅ **支持云端部署**
+
+```python
+from langgraph_sdk import get_client
+
+client = get_client(url="http://localhost:2024")
+
+async for chunk in client.runs.stream(
+    thread_id=thread_id,
+    assistant_id="planner_supervisor_agent",
+    input={"messages": [{"role": "user", "content": "你好"}]},
+    stream_mode="custom",
+):
+    if chunk.event == "custom":
+        print(chunk.data)  # {"delta": "..."} / {"thought": "..."} / {"tool_name": "..."}
+```
+
+## 可用的 Assistant ID
+
+| ID | 模式 |
+|----|------|
+| `planner_supervisor_agent` | Planner-Supervisor 模式 |
+| `my_name_suggestion_chat_agent` | ReAct 模式 |
+| `custom_chat_agent` | ReAct 自定义创作 |
+""",
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -110,7 +147,11 @@ async def chat_stream_simple(request: StreamChatRequest):
     };
     ```
     
-    **注意**: 需要先启动 `langgraph dev` 服务
+    ## ⚠️ 注意事项
+    
+    - 需要先启动 `langgraph dev` 服务
+    - 本接口**不支持 LangGraph Cloud 云端部署**
+    - 如需云端部署，请使用 LangGraph SDK 的 `stream_mode="custom"` 直接调用
     """
     async def event_generator():
         async for event in langgraph_client.chat_stream_simple(
